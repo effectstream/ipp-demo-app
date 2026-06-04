@@ -1,1 +1,11 @@
+# Deploy artifacts — regenerated each time the orchestrator deploys the
+# contract; not source.
 contract-ballot.undeployed.json
+contract-anchor.undeployed.json
+contract.json
+
+# LevelDB runtime state from the contract deploy / private-state store.
+# Each LevelDB directory may contain wallet private state that absolutely
+# must not be committed.
+midnight-level-db/
+midnight-level-db-*/
