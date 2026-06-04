@@ -1,0 +1,15 @@
+build/
+DerivedData/
+*.xcuserstate
+*.xcuserdatad/
+xcuserdata/
+.DS_Store
+
+# xcodegen output — regenerate with `xcodegen generate`
+IPP.xcodeproj/
+
+# Secrets (Firebase was removed but lock these out belt-and-suspenders)
+GoogleService-Info.plist
+*.p8
+*.p12
+
