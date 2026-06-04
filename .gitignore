@@ -1,0 +1,20 @@
+# OS / editor
+.DS_Store
+.vscode/
+.idea/
+
+# Dependencies (handled per workspace too — duplicated here for safety)
+node_modules/
+
+# Logs
+*.log
+
+# Secret material (per-project .gitignores also cover these — belt + suspenders)
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.p8
+GoogleService-Info.plist
