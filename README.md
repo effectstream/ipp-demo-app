@@ -85,6 +85,7 @@ appends a row to `anchored_hashes`.
 | POST   | `/api/v1/lookup`                  | `{ rut, passcode }` → full row (404 on mismatch)         |
 | POST   | `/api/v1/patient-hash`            | Signed hash anchor (existing)                            |
 | GET    | `/api/v1/patient-hash/:patientId` | List anchors for a patient                               |
+| GET    | `/api/v1/verify/:rut`             | Read `anchors.lookup(SHA-256(rut))` back from chain; reports chain↔anchored and chain↔current-record match |
 
 ## Running it
 
@@ -176,11 +177,31 @@ A real anchor went through the full pipeline:
 See [midnight/README.md](midnight/README.md) for the run steps and the two
 upstream-template bugs that needed fixing on the way.
 
+## On-chain verification
+
+`GET /api/v1/verify/:rut` closes the anchor loop: it reads
+`anchors.lookup(SHA-256(rut))` back from the Midnight indexer (via a small
+read-only service started alongside the batcher — see
+[midnight/README.md](midnight/README.md)) and reports two things:
+
+- **chainMatch** — the chain still holds the exact hash we submitted when
+  anchoring (chain ↔ `anchored_hashes`).
+- **recordMatch** — the patient record *as it stands now* still hashes to the
+  on-chain value (chain ↔ current record). If someone edits the stored record
+  after it was anchored, this flips to `false`.
+
+The backend recomputes the record hash with a canonical encoder that is
+byte-for-byte identical to the iOS `PatientHasher` (locked by a
+Foundation-produced test vector in
+[`backend/scripts/verify-canonical.ts`](backend/scripts/verify-canonical.ts)),
+and the iOS app re-checks independently with its own encoder. Both surface a
+"Verificar en cadena" control.
+
 ## Roadmap
 
-- **Indexer-side verification** — Read `anchors.lookup(SHA-256(rut))` via
-  the Midnight indexer so anyone can verify a patient hash without trusting
-  the backend.
+- **Trustless client-side verification** — have the web client read the
+  indexer directly (rather than through the backend) so verification needs no
+  trusted server at all.
 - **Auth for doctors** — Currently anyone with the backend URL can write
   any patient. Add a doctor-identity layer.
 

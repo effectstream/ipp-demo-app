@@ -77,6 +77,25 @@ The deployed contract address is written to
 `packages/contracts-midnight/contract-anchor.undeployed.json` and read by the
 batcher via `@effectstream/midnight-contracts/read-contract`.
 
+## Reading anchors back (verification)
+
+Writing an anchor is only half the story — to *verify* a record you have to
+read `anchors.lookup(SHA-256(rut))` back. [`packages/batcher/read-anchor.ts`](packages/batcher/read-anchor.ts)
+does that with a read-only `indexerPublicDataProvider` + the compiled
+`Anchor.ledger()` reader (no wallet, no proof server). It's exposed over HTTP
+by [`read-server.ts`](packages/batcher/read-server.ts), which starts
+automatically alongside the batcher:
+
+```bash
+# started with the batcher, or standalone:
+bun run --cwd packages/batcher read-server     # listens on :3336
+
+curl http://localhost:3336/anchor/<keyHex>     # → { found, valueHex }
+```
+
+The IPP backend's `MidnightAdapter.read()` calls this (`ANCHOR_READ_URL`,
+default `http://localhost:3336`) to serve `GET /api/v1/verify/:rut`.
+
 ## Verified end-to-end
 
 A submission flowed iOS-client → IPP backend → batcher → `anchor` circuit →
