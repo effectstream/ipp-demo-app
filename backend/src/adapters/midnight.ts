@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import type { AnchorContext, ChainAdapter } from "../types.ts";
+import type { AnchorContext, ChainAdapter, ChainReadResult } from "../types.ts";
 
 // MidnightAdapter posts each anchor to the IPP batcher (at ../midnight/),
 // which in turn invokes the `anchor(key, value)` circuit on the Midnight
@@ -16,10 +16,14 @@ export class MidnightAdapter implements ChainAdapter {
 
   private readonly batcherUrl: string;
   private readonly batcherAddress: string;
+  private readonly readUrl: string;
 
   constructor() {
     this.batcherUrl = process.env.MIDNIGHT_BATCHER_URL ?? "http://localhost:3335";
     this.batcherAddress = process.env.MIDNIGHT_BATCHER_ADDRESS ?? "ipp-anchor";
+    // The read-only anchor server (read-server.ts), started alongside the
+    // batcher. Reads the anchors ledger back from the Midnight indexer.
+    this.readUrl = process.env.ANCHOR_READ_URL ?? "http://localhost:3336";
   }
 
   async submit(ctx: AnchorContext): Promise<string | null> {
@@ -61,5 +65,17 @@ export class MidnightAdapter implements ChainAdapter {
       throw new Error(`batcher did not succeed: ${result.message ?? "unknown"}`);
     }
     return result.transactionHash ?? null;
+  }
+
+  async read(keyHex: string): Promise<ChainReadResult> {
+    const res = await fetch(`${this.readUrl}/anchor/${keyHex}`, {
+      signal: AbortSignal.timeout(30_000),
+    });
+    if (!res.ok) {
+      const text = await res.text();
+      throw new Error(`anchor read failed: ${res.status} ${text}`);
+    }
+    const result = (await res.json()) as ChainReadResult;
+    return { found: !!result.found, valueHex: result.valueHex ?? null };
   }
 }

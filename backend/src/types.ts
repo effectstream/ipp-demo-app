@@ -106,7 +106,15 @@ export interface AnchorContext {
   timestamp: number;
 }
 
+export interface ChainReadResult {
+  found: boolean;
+  valueHex: string | null;
+}
+
 export interface ChainAdapter {
   readonly name: string;
   submit(ctx: AnchorContext): Promise<string | null>;
+  // Read the on-chain value anchored at `keyHex` (= SHA-256(rut)). Used by the
+  // verification path. Adapters with no on-chain read return { found: false }.
+  read(keyHex: string): Promise<ChainReadResult>;
 }
