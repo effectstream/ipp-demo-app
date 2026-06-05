@@ -62,9 +62,13 @@ to `POST /api/v1/patients`. The backend mirrors `rut`, `latitude`, `longitude`
 to columns for indexing/map queries; the full record lives in the `data` JSONB.
 
 **Passcodes.** On first insert the backend generates a 6-digit numeric
-passcode and stores it in plaintext on the row (re-fetchable model — see the
-README question history). iOS surfaces it in the Datos personales tab with a
-copy button so the doctor can share it.
+passcode, stores only its HMAC-SHA256 (`PASSCODE_SECRET`), and returns the
+plaintext exactly **once** in the create response — iOS surfaces it in the
+Datos personales tab with a copy button so the doctor can share it. Reads and
+lookup never return it again. `/api/v1/lookup` compares the passcode against
+the stored HMAC (constant-time) and is rate-limited per rut+IP (5 tries /
+15 min), since a 6-digit code is otherwise brute-forceable. Each row also
+records the form `schema_version` it was captured under.
 
 **Hash anchor.** Separately, iOS computes SHA-256 of the canonical JSON
 encoding of the patient (passcode field stripped — see `Patient.canonicalCopy()`),
