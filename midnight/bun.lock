@@ -19,7 +19,10 @@
       "version": "1.0.0",
       "dependencies": {
         "@effectstream/batcher-sdk": "0.100.13",
+        "@effectstream/midnight-contracts": "0.100.13",
         "@ipp/midnight-contract": "workspace:*",
+        "@midnight-ntwrk/midnight-js-indexer-public-data-provider": "4.0.2",
+        "@midnight-ntwrk/midnight-js-network-id": "4.0.2",
         "effection": "^3.5.0",
       },
     },
