@@ -24,7 +24,10 @@ export interface LeaderboardEntry {
 export interface PatientRow {
   id: string;
   rut: string;
-  passcode: string;
+  // Plaintext passcode is returned ONCE, in the POST /patients response for a
+  // newly-created patient. It is never stored in plaintext (only an HMAC is)
+  // and is never returned by reads/lookup.
+  passcode?: string;
   latitude: number | null;
   longitude: number | null;
   data: Record<string, unknown>;
