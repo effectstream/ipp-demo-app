@@ -118,7 +118,9 @@ private struct ListResponse: Decodable {
 private struct PatientEnvelope: Decodable {
     let id: String
     let rut: String
-    let passcode: String
+    // Plaintext passcode is only present in the POST response for a brand-new
+    // patient (shown once). Reads/lookup no longer return it.
+    let passcode: String?
     let latitude: Double?
     let longitude: Double?
     let data: Patient
