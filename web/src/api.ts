@@ -1,4 +1,4 @@
-import type { FormSchema, MapPin, PatientEnvelope } from "./types";
+import type { FormSchema, MapPin, PatientEnvelope, VerifyResult } from "./types";
 
 const BASE_URL = import.meta.env.VITE_BACKEND_URL ?? "http://localhost:3334";
 
@@ -26,6 +26,15 @@ export async function putSchema(schema: FormSchema): Promise<FormSchema> {
     throw new Error(`schema PUT failed: ${res.status} ${body}`);
   }
   return (await res.json()) as FormSchema;
+}
+
+export async function verifyOnChain(rut: string): Promise<VerifyResult> {
+  const res = await fetch(`${BASE_URL}/api/v1/verify/${encodeURIComponent(rut)}`);
+  if (!res.ok) {
+    const body = await res.text();
+    throw new Error(`verify failed: ${res.status} ${body}`);
+  }
+  return (await res.json()) as VerifyResult;
 }
 
 export async function lookupPatient(

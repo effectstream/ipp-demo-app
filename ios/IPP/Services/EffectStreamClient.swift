@@ -6,6 +6,23 @@ struct AnchorResponse: Codable {
     let chain: String?
 }
 
+// Result of GET /api/v1/verify/:rut — on-chain anchor verification.
+struct VerifyResult: Codable {
+    let rut: String
+    let keyHex: String
+    let chain: String
+    let found: Bool
+    let onChainHash: String?
+    let anchoredHash: String?
+    let localHash: String?
+    let chainMatch: Bool
+    let recordMatch: Bool
+    let chainTxId: String?
+    let chainName: String?
+    let anchoredAt: String?
+    let readError: String?
+}
+
 enum EffectStreamError: Error, LocalizedError {
     case badURL
     case httpStatus(Int, String)
@@ -58,5 +75,23 @@ final class EffectStreamClient {
             throw EffectStreamError.httpStatus(http.statusCode, body)
         }
         return try JSONDecoder().decode(AnchorResponse.self, from: data)
+    }
+
+    // Reads anchors.lookup(SHA-256(rut)) back from chain via the backend.
+    func verify(rut: String) async throws -> VerifyResult {
+        let url = baseURL
+            .appendingPathComponent("api/v1/verify")
+            .appendingPathComponent(rut)
+        var req = URLRequest(url: url)
+        req.httpMethod = "GET"
+        req.timeoutInterval = 40
+
+        let (data, response) = try await URLSession.shared.data(for: req)
+        guard let http = response as? HTTPURLResponse else { throw EffectStreamError.decoding }
+        guard (200..<300).contains(http.statusCode) else {
+            let body = String(data: data, encoding: .utf8) ?? ""
+            throw EffectStreamError.httpStatus(http.statusCode, body)
+        }
+        return try JSONDecoder().decode(VerifyResult.self, from: data)
     }
 }
