@@ -80,3 +80,22 @@ export interface PatientData {
   createdAt?: string;
   updatedAt?: string;
 }
+
+// Result of GET /api/v1/verify/:rut — on-chain anchor verification.
+export interface VerifyResult {
+  rut: string;
+  keyHex: string;
+  chain: string;
+  found: boolean;
+  onChainHash: string | null;
+  anchoredHash: string | null;
+  localHash: string | null;
+  // chain faithfully stored the hash we submitted when anchoring
+  chainMatch: boolean;
+  // the current record still matches what's anchored on chain
+  recordMatch: boolean;
+  chainTxId: string | null;
+  chainName: string | null;
+  anchoredAt: string | null;
+  readError: string | null;
+}

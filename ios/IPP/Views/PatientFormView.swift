@@ -16,6 +16,10 @@ struct PatientFormView: View {
     @State private var showDiscardConfirm = false
     @State private var originalSnapshot: Patient?
 
+    @State private var verifying = false
+    @State private var verifyResult: VerifyResult?
+    @State private var verifyError: String?
+
     private var schema: FormSchema { schemaService.schema }
     private var isViewer: Bool { session.isViewer }
 
@@ -108,6 +112,7 @@ struct PatientFormView: View {
         if tab.id == sortedTabs.first?.id, let code = patient.passcode, !code.isEmpty {
             VStack(spacing: 0) {
                 passcodeBanner(code: code)
+                verifyBanner()
                 DynamicFormView(tabId: tab.id, responses: $patient.responses)
             }
         } else {
@@ -143,6 +148,106 @@ struct PatientFormView: View {
         }
         .padding()
         .background(Color(.secondarySystemBackground))
+    }
+
+    // -- On-chain verification ---------------------------------------------
+
+    @ViewBuilder
+    private func verifyBanner() -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Text("Verificación en cadena")
+                    .font(.caption)
+                    .textCase(.uppercase)
+                    .foregroundStyle(.secondary)
+                Spacer()
+                Button {
+                    Task { await verify() }
+                } label: {
+                    if verifying {
+                        ProgressView()
+                    } else {
+                        Label("Verificar", systemImage: "checkmark.shield").font(.caption)
+                    }
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+                .disabled(verifying || patient.rut.isEmpty)
+            }
+
+            if let v = verifyResult {
+                let verdict = verifyVerdict(v)
+                Label(verdict.title, systemImage: verdict.icon)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(verdict.color)
+                Text(verdict.detail)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                if let tx = v.chainTxId, !tx.isEmpty {
+                    Text("Tx: \(tx.prefix(16))…")
+                        .font(.caption2.monospaced())
+                        .foregroundStyle(.secondary)
+                }
+            }
+            if let e = verifyError {
+                Text(e).font(.caption).foregroundStyle(.red)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding()
+        .background(Color(.secondarySystemBackground))
+    }
+
+    // Verdict uses the device-recomputed hash (PatientHasher) as the
+    // authoritative "does this record match the chain" signal — the iOS
+    // encoder is the one that produced the anchor in the first place.
+    private func verifyVerdict(
+        _ v: VerifyResult
+    ) -> (title: String, detail: String, icon: String, color: Color) {
+        if let err = v.readError, !err.isEmpty {
+            return ("No se pudo leer la cadena", err, "exclamationmark.triangle", .secondary)
+        }
+        if v.chain == "local" && !v.found {
+            return ("Cadena local (desarrollo)",
+                    "El backend no está conectado a Midnight; no hay anclaje real que verificar.",
+                    "info.circle", .secondary)
+        }
+        let localHash = try? PatientHasher.sha256Hex(patient)
+        if v.found, let oc = v.onChainHash, let lh = localHash, oc == lh {
+            return ("Verificado en Midnight",
+                    "El hash del registro actual coincide con el valor anclado en la cadena.",
+                    "checkmark.seal.fill", .green)
+        }
+        if v.found, v.chainMatch {
+            return ("El registro cambió desde el anclaje",
+                    "La cadena conserva el hash original; el registro actual difiere.",
+                    "exclamationmark.triangle.fill", .orange)
+        }
+        if v.found {
+            return ("No coincide con la cadena",
+                    "El valor en la cadena no coincide con este registro.",
+                    "xmark.seal.fill", .red)
+        }
+        if v.anchoredHash != nil {
+            return ("Anclado, no encontrado en la cadena",
+                    "Se registró un anclaje pero la cadena no devuelve un valor (¿indexador sin sincronizar?).",
+                    "exclamationmark.triangle", .orange)
+        }
+        return ("Sin anclaje en la cadena",
+                "Este registro aún no ha sido anclado en Midnight.",
+                "circle.dashed", .secondary)
+    }
+
+    private func verify() async {
+        verifying = true
+        verifyError = nil
+        verifyResult = nil
+        defer { verifying = false }
+        do {
+            verifyResult = try await env.effectStream.verify(rut: patient.rut)
+        } catch {
+            verifyError = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+        }
     }
 
     private func attemptCancel() {

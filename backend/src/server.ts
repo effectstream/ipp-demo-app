@@ -1,9 +1,11 @@
 import Fastify from "fastify";
 import cors from "@fastify/cors";
+import { createHash } from "node:crypto";
 import { sql, initSchema, generatePasscode, loadSchema, storeSchema } from "./db.ts";
 import { LocalAdapter } from "./adapters/local.ts";
 import { MidnightAdapter } from "./adapters/midnight.ts";
 import { verifySignature } from "./verify.ts";
+import { hashPatientData } from "./canonical.ts";
 import type {
   AnchorContext,
   ChainAdapter,
@@ -262,6 +264,84 @@ app.get("/api/v1/patient-hash/:patientId", async (req) => {
     ORDER BY received_at ASC
   `;
   return { patientId, records: rows };
+});
+
+// -- On-chain verification -------------------------------------------------
+//
+// Closes the anchor loop: reads anchors.lookup(SHA-256(rut)) back from chain
+// and reports whether it matches (a) the hash we recorded when anchoring
+// [chainMatch — proves the chain faithfully stored our submission] and
+// (b) the hash of the patient record as it stands right now [recordMatch —
+// proves the stored record has not been altered since it was anchored].
+//
+// The iOS client does the same recordMatch check locally with its own
+// canonical encoder, so the doctor's device verifies independently of the
+// backend's canonicalization.
+app.get("/api/v1/verify/:rut", async (req, reply) => {
+  const { rut } = req.params as { rut: string };
+  if (!RUT_PATTERN.test(rut)) {
+    return reply.code(400).send({ error: "invalid rut" });
+  }
+
+  const keyHex = createHash("sha256").update(rut, "utf8").digest("hex");
+
+  const patientRows = await sql<PatientRow[]>`
+    SELECT id, rut, data FROM patients WHERE rut = ${rut}
+  `;
+  const patient = patientRows[0];
+  if (!patient) return reply.code(404).send({ error: "patient not found" });
+
+  // Latest anchor we recorded for this patient (what iOS computed + submitted).
+  const anchorRows = await sql<
+    { hash: string; chainTxId: string | null; chainName: string; receivedAt: string }[]
+  >`
+    SELECT hash, chain_tx_id AS "chainTxId", chain_name AS "chainName",
+           received_at AS "receivedAt"
+    FROM anchored_hashes
+    WHERE patient_id = ${patient.id}
+    ORDER BY received_at DESC
+    LIMIT 1
+  `;
+  const anchoredHash = anchorRows[0]?.hash ?? null;
+
+  // Recompute the hash of the current record (must match what iOS computed).
+  let localHash: string | null = null;
+  try {
+    localHash = hashPatientData(patient.data);
+  } catch (err) {
+    app.log.error({ err }, "canonical hash failed");
+  }
+
+  // Read the value currently on chain.
+  let onChainHash: string | null = null;
+  let found = false;
+  let readError: string | null = null;
+  try {
+    const result = await adapter.read(keyHex);
+    found = result.found;
+    onChainHash = result.valueHex;
+  } catch (err) {
+    readError = err instanceof Error ? err.message : String(err);
+    app.log.error({ err }, "chain read failed");
+  }
+
+  return {
+    rut,
+    keyHex,
+    chain: adapter.name,
+    found,
+    onChainHash,
+    anchoredHash,
+    localHash,
+    // chain faithfully stored the hash we submitted
+    chainMatch: found && anchoredHash != null && onChainHash === anchoredHash,
+    // the current record still matches what's anchored on chain
+    recordMatch: found && localHash != null && onChainHash === localHash,
+    chainTxId: anchorRows[0]?.chainTxId ?? null,
+    chainName: anchorRows[0]?.chainName ?? null,
+    anchoredAt: anchorRows[0]?.receivedAt ?? null,
+    readError,
+  };
 });
 
 try {

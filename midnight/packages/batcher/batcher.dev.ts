@@ -1,6 +1,7 @@
 import { main, suspend } from "effection";
 import { createNewBatcher, FileStorage, type BatcherConfig } from "@effectstream/batcher-sdk";
 import { createMidnightBalancingAdapter } from "./midnight-balancing.ts";
+import { startReadServer } from "./read-server.ts";
 
 const batchIntervalMs = 1000;
 // 3335 so the IPP backend (on 3334) can call this batcher.
@@ -29,6 +30,11 @@ const batcher = createNewBatcher(config, storage);
 
 main(function* () {
   console.log("Starting IPP Anchor Batcher...");
+
+  // Read-only verification endpoint (GET /anchor/:keyHex) on its own port.
+  // Non-blocking — comes up alongside the batcher so the IPP backend's
+  // /verify route can read the anchors ledger back from chain.
+  startReadServer();
 
   try {
     batcher.addStateTransition("startup", ({ publicConfig }) => {
