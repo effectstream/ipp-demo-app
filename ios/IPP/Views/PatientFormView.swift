@@ -1,0 +1,171 @@
+import SwiftUI
+
+struct PatientFormView: View {
+    @EnvironmentObject private var env: AppEnvironment
+    @EnvironmentObject private var schemaService: SchemaService
+    @EnvironmentObject private var session: SessionService
+    @Environment(\.dismiss) private var dismiss
+    @State var patient: Patient
+    var isNew: Bool = false
+
+    @State private var saving = false
+    @State private var saved = false
+    @State private var savedMessage: String = ""
+    @State private var saveError: String?
+    @State private var copiedHint: Bool = false
+    @State private var showDiscardConfirm = false
+    @State private var originalSnapshot: Patient?
+
+    private var schema: FormSchema { schemaService.schema }
+    private var isViewer: Bool { session.isViewer }
+
+    private var sortedTabs: [FormTab] {
+        schema.tabs.sorted { $0.order < $1.order }
+    }
+
+    // "Dirty" if the current patient differs from the snapshot we took when
+    // the view first appeared. Viewers can't save so we never treat their
+    // changes as dirty.
+    private var hasUnsavedChanges: Bool {
+        guard !isViewer, let original = originalSnapshot else { return false }
+        return original != patient
+    }
+
+    var body: some View {
+        TabView {
+            ForEach(sortedTabs, id: \.id) { tab in
+                tabContent(tab)
+                    .tabItem {
+                        Label(
+                            tab.label,
+                            systemImage: tab.icon ?? "doc.text"
+                        )
+                    }
+            }
+        }
+        .navigationTitle(patient.nombre.isEmpty ? "Nuevo paciente" : patient.nombre)
+        .navigationBarTitleDisplayMode(.inline)
+        // Block the swipe-down dismiss while there are unsaved edits — the
+        // user must hit Cancelar (or Guardar) so they see the discard
+        // confirmation. iOS Mail's compose sheet does the same thing.
+        .interactiveDismissDisabled(hasUnsavedChanges)
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                if isViewer {
+                    Text("Visitante")
+                        .font(.caption)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 4)
+                        .background(Color(.tertiarySystemFill))
+                        .clipShape(Capsule())
+                } else {
+                    Button {
+                        Task { await save() }
+                    } label: {
+                        if saving { ProgressView() } else { Text("Guardar") }
+                    }
+                    .disabled(saving)
+                }
+            }
+            if isNew {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button("Cancelar") { attemptCancel() }
+                }
+            }
+        }
+        .onAppear {
+            if originalSnapshot == nil { originalSnapshot = patient }
+        }
+        .confirmationDialog(
+            "¿Descartar cambios?",
+            isPresented: $showDiscardConfirm,
+            titleVisibility: .visible
+        ) {
+            Button("Descartar", role: .destructive) { dismiss() }
+            Button("Continuar editando", role: .cancel) {}
+        } message: {
+            Text("Los datos ingresados se perderán.")
+        }
+        .alert("Paciente guardado", isPresented: $saved) {
+            Button("OK") {
+                if isNew { dismiss() }
+            }
+        } message: {
+            Text(savedMessage)
+        }
+        .alert("Error", isPresented: Binding(
+            get: { saveError != nil },
+            set: { if !$0 { saveError = nil } }
+        )) {
+            Button("OK") { saveError = nil }
+        } message: {
+            Text(saveError ?? "")
+        }
+    }
+
+    @ViewBuilder
+    private func tabContent(_ tab: FormTab) -> some View {
+        if tab.id == sortedTabs.first?.id, let code = patient.passcode, !code.isEmpty {
+            VStack(spacing: 0) {
+                passcodeBanner(code: code)
+                DynamicFormView(tabId: tab.id, responses: $patient.responses)
+            }
+        } else {
+            DynamicFormView(tabId: tab.id, responses: $patient.responses)
+        }
+    }
+
+    private func passcodeBanner(code: String) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack {
+                Text("Código de acceso del paciente")
+                    .font(.caption)
+                    .textCase(.uppercase)
+                    .foregroundStyle(.secondary)
+                Spacer()
+                Button {
+                    UIPasteboard.general.string = code
+                    withAnimation { copiedHint = true }
+                    Task {
+                        try? await Task.sleep(nanoseconds: 1_500_000_000)
+                        withAnimation { copiedHint = false }
+                    }
+                } label: {
+                    Label(copiedHint ? "Copiado" : "Copiar", systemImage: copiedHint ? "checkmark" : "doc.on.doc")
+                        .font(.caption)
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+            }
+            Text(code)
+                .font(.title2.monospaced())
+                .kerning(4)
+        }
+        .padding()
+        .background(Color(.secondarySystemBackground))
+    }
+
+    private func attemptCancel() {
+        if hasUnsavedChanges {
+            showDiscardConfirm = true
+        } else {
+            dismiss()
+        }
+    }
+
+    private func save() async {
+        saving = true
+        defer { saving = false }
+        if let updated = await env.saveAndAnchor(patient) {
+            patient = updated
+            originalSnapshot = updated  // saved → no longer dirty
+            let code = updated.passcode ?? "—"
+            let tx = env.lastAnchor?.txId ?? "—"
+            let chain = env.lastAnchor?.chain ?? "—"
+            savedMessage = "Código de acceso: \(code)\nHash anclado en \(chain).\nTx: \(tx)"
+            saved = true
+        } else if let err = env.lastError {
+            saveError = err
+        }
+    }
+}
