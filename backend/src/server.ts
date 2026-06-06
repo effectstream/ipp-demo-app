@@ -16,6 +16,7 @@ import { MidnightAdapter } from "./adapters/midnight.ts";
 import { verifySignature } from "./verify.ts";
 import { hashPatientData } from "./canonical.ts";
 import { checkRate, recordFailure, clearRate } from "./ratelimit.ts";
+import { requireDoctor, isRegisteredKey } from "./auth.ts";
 import type {
   AnchorContext,
   ChainAdapter,
@@ -50,6 +51,26 @@ const app = Fastify({ logger: true });
 // origin (Vite dev server on :5173). Tighten before deploying to prod.
 await app.register(cors, { origin: true });
 
+// Capture the raw JSON body (as a string) so the signed-request auth can hash
+// the exact bytes the client signed, while still exposing parsed `req.body` to
+// handlers. Replaces Fastify's default application/json parser.
+app.addContentTypeParser(
+  "application/json",
+  { parseAs: "string" },
+  (req, body, done) => {
+    req.rawBody = body as string;
+    if (!body) {
+      done(null, undefined);
+      return;
+    }
+    try {
+      done(null, JSON.parse(body as string));
+    } catch (err) {
+      done(err as Error, undefined);
+    }
+  },
+);
+
 app.get("/health", async () => ({
   status: "ok",
   chain: adapter.name,
@@ -58,7 +79,7 @@ app.get("/health", async () => ({
 
 // -- Patient CRUD ----------------------------------------------------------
 
-app.post("/api/v1/patients", async (req, reply) => {
+app.post("/api/v1/patients", { preHandler: requireDoctor }, async (req, reply) => {
   const body = req.body as Partial<PatientUpsertRequest> | undefined;
   if (
     !body ||
@@ -76,9 +97,9 @@ app.post("/api/v1/patients", async (req, reply) => {
   const passcode = generatePasscode();
   const passcodeHash = hashPasscode(passcode);
   const schemaVersion = await currentSchemaVersion();
-  const doctorName = typeof body.doctorName === "string" && body.doctorName.trim()
-    ? body.doctorName.trim()
-    : null;
+  // doctor_name is the authenticated identity, not a client-supplied string.
+  const doctorName = req.doctor?.username
+    ?? (typeof body.doctorName === "string" && body.doctorName.trim() ? body.doctorName.trim() : null);
 
   // Upsert. We store only an HMAC of the passcode, and stamp the schema
   // version the record was captured under. doctor_name is preserved on update
@@ -107,7 +128,7 @@ app.post("/api/v1/patients", async (req, reply) => {
   return reply.code(200).send(inserted ? { ...patient, passcode } : patient);
 });
 
-app.get("/api/v1/patients", async () => {
+app.get("/api/v1/patients", { preHandler: requireDoctor }, async () => {
   const rows = await sql<PatientRow[]>`
     SELECT id, rut, latitude, longitude, data,
            created_at AS "createdAt", updated_at AS "updatedAt"
@@ -117,7 +138,7 @@ app.get("/api/v1/patients", async () => {
   return { patients: rows };
 });
 
-app.get("/api/v1/patients/:id", async (req, reply) => {
+app.get("/api/v1/patients/:id", { preHandler: requireDoctor }, async (req, reply) => {
   const { id } = req.params as { id: string };
   const rows = await sql<PatientRow[]>`
     SELECT id, rut, latitude, longitude, data,
@@ -129,7 +150,7 @@ app.get("/api/v1/patients/:id", async (req, reply) => {
   return row;
 });
 
-app.delete("/api/v1/patients/:id", async (req, reply) => {
+app.delete("/api/v1/patients/:id", { preHandler: requireDoctor }, async (req, reply) => {
   const { id } = req.params as { id: string };
   await sql`DELETE FROM patients WHERE id = ${id}`;
   return reply.code(204).send();
@@ -142,7 +163,7 @@ app.get("/api/v1/schema", async () => {
   return schema;
 });
 
-app.put("/api/v1/schema", async (req, reply) => {
+app.put("/api/v1/schema", { preHandler: requireDoctor }, async (req, reply) => {
   const body = req.body as Partial<FormSchema> | undefined;
   if (
     !body ||
@@ -250,6 +271,13 @@ app.post("/api/v1/patient-hash", async (req, reply) => {
     signature: body.signature,
   });
   if (!valid) return reply.code(401).send({ error: "invalid signature" });
+
+  // The signing key must belong to a registered doctor. In the normal flow the
+  // doctor has already saved the patient (POST /patients, which registers the
+  // key on first use) before anchoring, so this is satisfied.
+  if (!(await isRegisteredKey(body.publicKey))) {
+    return reply.code(401).send({ error: "unregistered key" });
+  }
 
   // Look up the patient's RUT so the adapter can use SHA-256(rut) as the
   // on-chain key. Reject if the patient hasn't been created yet — the iOS
