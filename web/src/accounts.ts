@@ -30,6 +30,13 @@ export function findAccount(username: string, password: string): DemoAccount | n
   return ACCOUNTS.find((a) => a.username === u && a.password === password) ?? null;
 }
 
+// Look up an account by username alone — used to recover the signing key for
+// the logged-in session (the session only stores the username).
+export function accountByUsername(username: string): DemoAccount | null {
+  const u = username.trim();
+  return ACCOUNTS.find((a) => a.username === u) ?? null;
+}
+
 export function walletForAccount(account: DemoAccount): string {
   return mockCardanoAddress(`cardano-sk:${account.secretKey}`);
 }
