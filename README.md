@@ -201,18 +201,34 @@ Foundation-produced test vector in
 and the iOS app re-checks independently with its own encoder. Both surface a
 "Verificar en cadena" control.
 
+## Doctor authentication
+
+Doctor-scope endpoints (`POST/GET/DELETE /patients`, `PUT /schema`, and
+`/patient-hash`) require a **signed request**. The client signs
+`${METHOD}|${path}|${timestamp}|${SHA-256(body)}` with an ed25519 key derived
+deterministically from the account's seed, and sends `X-IPP-PubKey` /
+`X-IPP-Timestamp` / `X-IPP-Signature` / `X-IPP-Username`. The backend
+([backend/src/auth.ts](backend/src/auth.ts)) verifies the signature, checks a
+5-minute clock skew, and resolves the key against a `doctors` table
+(trust-on-first-use: a new key binds to its username). `doctor_name`
+attribution comes from the authenticated identity, not a client field.
+
+The iOS (CryptoKit) and web (`@noble/ed25519`) clients derive the **same** key
+from the same account seed (standard RFC 8032 ed25519), so a doctor has one
+identity across both. Public reads — `/health`, `GET /schema`, `/map-pins`,
+`/leaderboard`, `/lookup`, `/verify` — stay open.
+
 ## Roadmap
 
 - **Trustless client-side verification** — have the web client read the
   indexer directly (rather than through the backend) so verification needs no
   trusted server at all.
-- **Auth for doctors** — Currently anyone with the backend URL can write
-  any patient. Add a doctor-identity layer.
+- **Real signup** — replace the fixed demo-account seeds with per-device
+  generated keys stored in the iOS Keychain.
 
 ## What's intentionally not done
 
-- **No auth on the doctor-facing endpoints.** Anyone who knows the backend
-  URL can list/create/edit any patient. Fine for development, must be fixed
-  before any real use.
-- **Wallet is regenerated every app launch** (in-memory only).
+- **Demo accounts ship fixed seeds.** The ten `userNN` accounts derive their
+  signing keys from committed seeds — fine for a demo, but a real deployment
+  needs per-user generated keys (see Roadmap).
 - **No app icon / launch screen art.**
