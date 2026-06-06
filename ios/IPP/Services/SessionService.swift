@@ -44,6 +44,12 @@ final class SessionService: ObservableObject {
         if case .loggedIn(let a) = state { return a.walletAddress } else { return nil }
     }
 
+    // ed25519 signing identity for the logged-in doctor (nil for viewer/none),
+    // derived from the account seed. Used to sign doctor-scope API requests.
+    var wallet: Wallet? {
+        if case .loggedIn(let a) = state { return Wallet(seedHex: a.secretKey) } else { return nil }
+    }
+
     func loginWithCredentials(username: String, password: String) -> Bool {
         guard let account = DemoAccounts.find(username: username, password: password) else {
             return false

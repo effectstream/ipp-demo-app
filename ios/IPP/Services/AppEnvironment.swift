@@ -29,6 +29,15 @@ final class AppEnvironment: ObservableObject {
         apiStore.doctorNameProvider = { [weak session] in
             MainActor.assumeIsolated { session?.username }
         }
+        // Sign doctor-scope requests with the logged-in account's ed25519 key.
+        apiStore.signerProvider = { [weak session] in
+            MainActor.assumeIsolated {
+                guard let session, let wallet = session.wallet, let username = session.username else {
+                    return nil
+                }
+                return DoctorSigner(wallet: wallet, username: username)
+            }
+        }
     }
 
     static func live() -> AppEnvironment {
@@ -45,11 +54,16 @@ final class AppEnvironment: ObservableObject {
 
     func saveAndAnchor(_ patient: Patient) async -> Patient? {
         do {
+            guard let wallet = session.wallet else {
+                lastError = "Inicia sesión para guardar y anclar."
+                return nil
+            }
             let saved = try await store.save(patient)
             let hash = try PatientHasher.sha256Hex(saved)
             let response = try await effectStream.anchorPatientHash(
                 patientId: saved.id,
-                hashHex: hash
+                hashHex: hash,
+                wallet: wallet
             )
             lastAnchor = response
             lastError = nil

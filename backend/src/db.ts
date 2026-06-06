@@ -80,6 +80,16 @@ export async function initSchema(): Promise<void> {
   `;
   await sql`CREATE INDEX IF NOT EXISTS idx_anchored_patient ON anchored_hashes(patient_id)`;
 
+  // doctors binds a username to the ed25519 public key whose signature
+  // authorizes the doctor-scope endpoints (trust-on-first-use registration).
+  await sql`
+    CREATE TABLE IF NOT EXISTS doctors (
+      username TEXT PRIMARY KEY,
+      public_key TEXT UNIQUE NOT NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `;
+
   // Singleton row holding the current form schema. Constraint locks id=1
   // so we can't accidentally store multiple schemas — this is the
   // single source of truth that the iOS and web clients read.

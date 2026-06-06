@@ -9,6 +9,10 @@ final class APIPatientStore: PatientStore {
     /// rename via the leaderboard UI takes effect on the next save.
     var doctorNameProvider: () -> String? = { nil }
 
+    /// Closure returning the current doctor's request signer (or nil for an
+    /// anonymous viewer). Used to sign the gated doctor-scope endpoints.
+    var signerProvider: () -> DoctorSigner? = { nil }
+
     private let encoder: JSONEncoder = {
         let e = JSONEncoder()
         e.dateEncodingStrategy = .iso8601
@@ -65,9 +69,21 @@ final class APIPatientStore: PatientStore {
 
     // MARK: - HTTP helpers
 
+    // Attach signed-request auth headers (when a doctor is logged in). The
+    // signed path must be exactly the URL path the backend sees.
+    private func addAuth(_ req: inout URLRequest) {
+        guard let signer = signerProvider() else { return }
+        let method = req.httpMethod ?? "GET"
+        let path = req.url?.path ?? ""
+        for (k, v) in signer.headers(method: method, path: path, body: req.httpBody) {
+            req.setValue(v, forHTTPHeaderField: k)
+        }
+    }
+
     private func get<T: Decodable>(_ path: String) async throws -> T {
         var req = URLRequest(url: baseURL.appendingPathComponent(path))
         req.httpMethod = "GET"
+        addAuth(&req)
         return try await send(req)
     }
 
@@ -76,12 +92,14 @@ final class APIPatientStore: PatientStore {
         req.httpMethod = "POST"
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
         req.httpBody = try encoder.encode(body)
+        addAuth(&req)
         return try await send(req)
     }
 
     private func sendDelete(_ path: String) async throws {
         var req = URLRequest(url: baseURL.appendingPathComponent(path))
         req.httpMethod = "DELETE"
+        addAuth(&req)
         let (_, response) = try await URLSession.shared.data(for: req)
         guard let http = response as? HTTPURLResponse else { throw APIError.malformedResponse }
         guard (200..<300).contains(http.statusCode) else {
