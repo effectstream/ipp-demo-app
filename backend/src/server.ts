@@ -1,11 +1,21 @@
 import Fastify from "fastify";
 import cors from "@fastify/cors";
 import { createHash } from "node:crypto";
-import { sql, initSchema, generatePasscode, loadSchema, storeSchema } from "./db.ts";
+import {
+  sql,
+  initSchema,
+  generatePasscode,
+  hashPasscode,
+  passcodeMatches,
+  currentSchemaVersion,
+  loadSchema,
+  storeSchema,
+} from "./db.ts";
 import { LocalAdapter } from "./adapters/local.ts";
 import { MidnightAdapter } from "./adapters/midnight.ts";
 import { verifySignature } from "./verify.ts";
 import { hashPatientData } from "./canonical.ts";
+import { checkRate, recordFailure, clearRate } from "./ratelimit.ts";
 import type {
   AnchorContext,
   ChainAdapter,
@@ -64,33 +74,42 @@ app.post("/api/v1/patients", async (req, reply) => {
   const lat = body.latitude == null ? null : Number(body.latitude);
   const lng = body.longitude == null ? null : Number(body.longitude);
   const passcode = generatePasscode();
+  const passcodeHash = hashPasscode(passcode);
+  const schemaVersion = await currentSchemaVersion();
   const doctorName = typeof body.doctorName === "string" && body.doctorName.trim()
     ? body.doctorName.trim()
     : null;
 
-  // Upsert; only generate a new passcode if this is the first insert for
-  // this id, and doctor_name is preserved on update so the leaderboard
-  // credits whoever first registered the patient.
-  const rows = await sql<PatientRow[]>`
-    INSERT INTO patients (id, rut, passcode, doctor_name, latitude, longitude, data)
-    VALUES (${body.id}, ${body.rut}, ${passcode}, ${doctorName}, ${lat}, ${lng}, ${sql.json(body.data as never)})
+  // Upsert. We store only an HMAC of the passcode, and stamp the schema
+  // version the record was captured under. doctor_name is preserved on update
+  // so the leaderboard credits whoever first registered the patient. `xmax = 0`
+  // tells us whether this was a fresh insert (vs. an update of an existing id).
+  const rows = await sql<(PatientRow & { inserted: boolean })[]>`
+    INSERT INTO patients (id, rut, passcode_hash, schema_version, doctor_name, latitude, longitude, data)
+    VALUES (${body.id}, ${body.rut}, ${passcodeHash}, ${schemaVersion}, ${doctorName}, ${lat}, ${lng}, ${sql.json(body.data as never)})
     ON CONFLICT (id) DO UPDATE SET
       rut = EXCLUDED.rut,
       latitude = EXCLUDED.latitude,
       longitude = EXCLUDED.longitude,
       data = EXCLUDED.data,
+      schema_version = EXCLUDED.schema_version,
       updated_at = NOW()
-    RETURNING id, rut, passcode, latitude, longitude, data,
-              created_at AS "createdAt", updated_at AS "updatedAt"
+    RETURNING id, rut, latitude, longitude, data,
+              created_at AS "createdAt", updated_at AS "updatedAt",
+              (xmax = 0) AS inserted
   `;
   const row = rows[0];
   if (!row) return reply.code(500).send({ error: "upsert returned no row" });
-  return reply.code(200).send(row);
+  const { inserted, ...patient } = row;
+  // Return the plaintext passcode exactly ONCE, when the patient is first
+  // created. On later saves the doctor already has it and we no longer can
+  // (only the hash is stored).
+  return reply.code(200).send(inserted ? { ...patient, passcode } : patient);
 });
 
 app.get("/api/v1/patients", async () => {
   const rows = await sql<PatientRow[]>`
-    SELECT id, rut, passcode, latitude, longitude, data,
+    SELECT id, rut, latitude, longitude, data,
            created_at AS "createdAt", updated_at AS "updatedAt"
     FROM patients
     ORDER BY updated_at DESC
@@ -101,7 +120,7 @@ app.get("/api/v1/patients", async () => {
 app.get("/api/v1/patients/:id", async (req, reply) => {
   const { id } = req.params as { id: string };
   const rows = await sql<PatientRow[]>`
-    SELECT id, rut, passcode, latitude, longitude, data,
+    SELECT id, rut, latitude, longitude, data,
            created_at AS "createdAt", updated_at AS "updatedAt"
     FROM patients WHERE id = ${id}
   `;
@@ -166,21 +185,41 @@ app.get("/api/v1/map-pins", async () => {
   return { pins: rows };
 });
 
-// Patient self-service lookup: requires RUT + passcode. Returns the full record.
+// Patient self-service lookup: requires RUT + passcode. Returns the full
+// record. The passcode is compared against its HMAC (constant-time), and
+// repeated failures are rate-limited per rut+IP since a 6-digit code is
+// otherwise brute-forceable.
 app.post("/api/v1/lookup", async (req, reply) => {
   const body = req.body as { rut?: string; passcode?: string } | undefined;
   if (!body?.rut || !body?.passcode) {
     return reply.code(400).send({ error: "rut and passcode are required" });
   }
-  const rows = await sql<PatientRow[]>`
-    SELECT id, rut, passcode, latitude, longitude, data,
+
+  const now = Date.now();
+  const rateKey = `${body.rut}:${req.ip}`;
+  const decision = checkRate(rateKey, now);
+  if (!decision.allowed) {
+    return reply
+      .code(429)
+      .header("Retry-After", String(decision.retryAfterSeconds ?? 60))
+      .send({ error: "demasiados intentos, intente más tarde" });
+  }
+
+  const rows = await sql<(PatientRow & { passcodeHash: string | null })[]>`
+    SELECT id, rut, passcode_hash AS "passcodeHash", latitude, longitude, data,
            created_at AS "createdAt", updated_at AS "updatedAt"
     FROM patients
-    WHERE rut = ${body.rut} AND passcode = ${body.passcode}
+    WHERE rut = ${body.rut}
   `;
   const row = rows[0];
-  if (!row) return reply.code(404).send({ error: "no match" });
-  return row;
+  if (!row || !passcodeMatches(body.passcode, row.passcodeHash)) {
+    recordFailure(rateKey, now);
+    return reply.code(404).send({ error: "no match" });
+  }
+
+  clearRate(rateKey);
+  const { passcodeHash: _passcodeHash, ...patient } = row;
+  return patient;
 });
 
 // -- Hash anchor (existing) ------------------------------------------------

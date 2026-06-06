@@ -1,4 +1,4 @@
-import { randomInt } from "node:crypto";
+import { createHmac, randomInt, timingSafeEqual } from "node:crypto";
 import postgres from "postgres";
 import { DEFAULT_SCHEMA } from "./schema-defaults.ts";
 import type { FormSchema } from "./types.ts";
@@ -7,6 +7,14 @@ const url = process.env.DATABASE_URL;
 if (!url) {
   throw new Error("DATABASE_URL is required (see backend/.env.example)");
 }
+
+// Secret used to HMAC patient passcodes before storing them. Without it the
+// passcodes would sit in the DB in plaintext. Must be stable across restarts
+// (a per-process value would make every stored hash unverifiable next boot).
+if (!process.env.PASSCODE_SECRET) {
+  throw new Error("PASSCODE_SECRET is required (see backend/.env.example)");
+}
+const PASSCODE_SECRET: string = process.env.PASSCODE_SECRET;
 
 export const sql = postgres(url, {
   ssl: "require",
@@ -22,7 +30,8 @@ export async function initSchema(): Promise<void> {
     CREATE TABLE IF NOT EXISTS patients (
       id UUID PRIMARY KEY,
       rut TEXT NOT NULL UNIQUE,
-      passcode TEXT NOT NULL,
+      passcode_hash TEXT,
+      schema_version INT,
       latitude DOUBLE PRECISION,
       longitude DOUBLE PRECISION,
       data JSONB NOT NULL,
@@ -33,6 +42,24 @@ export async function initSchema(): Promise<void> {
   // Additive migration: doctor_name records who first registered the
   // patient. Set on initial insert, NEVER overwritten on update.
   await sql`ALTER TABLE patients ADD COLUMN IF NOT EXISTS doctor_name TEXT`;
+  // Tier 3 storage hygiene: store an HMAC of the passcode (never plaintext),
+  // and record which form-schema version captured each record.
+  await sql`ALTER TABLE patients ADD COLUMN IF NOT EXISTS passcode_hash TEXT`;
+  await sql`ALTER TABLE patients ADD COLUMN IF NOT EXISTS schema_version INT`;
+  // Legacy DBs created the plaintext `passcode TEXT NOT NULL` column. Drop the
+  // NOT NULL so the new insert path (which never writes plaintext) works; the
+  // column itself is removed by scripts/hash-passcodes.ts after backfill.
+  await sql`
+    DO $$
+    BEGIN
+      IF EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'patients' AND column_name = 'passcode'
+      ) THEN
+        ALTER TABLE patients ALTER COLUMN passcode DROP NOT NULL;
+      END IF;
+    END $$;
+  `;
   await sql`CREATE INDEX IF NOT EXISTS idx_patients_rut ON patients(rut)`;
   await sql`CREATE INDEX IF NOT EXISTS idx_patients_coords ON patients(latitude, longitude)`;
   await sql`CREATE INDEX IF NOT EXISTS idx_patients_doctor ON patients(doctor_name)`;
@@ -92,7 +119,28 @@ export async function storeSchema(schema: FormSchema): Promise<FormSchema> {
   return rows[0]?.schema ?? schema;
 }
 
+export async function currentSchemaVersion(): Promise<number> {
+  const rows = await sql<{ version: number }[]>`
+    SELECT version FROM form_schema WHERE id = 1
+  `;
+  return rows[0]?.version ?? DEFAULT_SCHEMA.version;
+}
+
 export function generatePasscode(): string {
   // 6-digit numeric (000000-999999), leading zeros preserved.
   return randomInt(0, 1_000_000).toString().padStart(6, "0");
+}
+
+// HMAC-SHA256 of a passcode. Stored instead of plaintext so a DB leak doesn't
+// expose lookup codes.
+export function hashPasscode(passcode: string): string {
+  return createHmac("sha256", PASSCODE_SECRET).update(passcode, "utf8").digest("hex");
+}
+
+// Constant-time comparison of a candidate passcode against a stored hash.
+export function passcodeMatches(passcode: string, storedHash: string | null): boolean {
+  if (!storedHash) return false;
+  const a = Buffer.from(hashPasscode(passcode), "hex");
+  const b = Buffer.from(storedHash, "hex");
+  return a.length === b.length && timingSafeEqual(a, b);
 }

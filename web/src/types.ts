@@ -9,7 +9,9 @@ export interface MapPin {
 export interface PatientEnvelope {
   id: string;
   rut: string;
-  passcode: string;
+  // Only present in the POST response for a newly-created patient; reads and
+  // lookup no longer return it (the backend stores only an HMAC).
+  passcode?: string;
   latitude: number | null;
   longitude: number | null;
   data: PatientData;
