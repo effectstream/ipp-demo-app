@@ -2,7 +2,7 @@
 // nested shape ({ personal, antecedentes, ginecologia, pisoPelvico }) into
 // the flat shape used by the dynamic form: { responses: { questionId: value } }.
 //
-// Idempotent — rows that already have `responses` are left alone.
+// Idempotent - rows that already have `responses` are left alone.
 //
 // Run with:
 //   cd backend

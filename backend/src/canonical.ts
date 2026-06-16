@@ -14,7 +14,7 @@ import { createHash } from "node:crypto";
 // preserve key order or whitespace, but it DOES preserve string values (so the
 // ISO-8601 date strings survive intact) and numeric values for the simple
 // clinical magnitudes used here. We re-sort keys ourselves, so order does not
-// matter — only the canonical byte sequence, which this reproduces.
+// matter - only the canonical byte sequence, which this reproduces.
 //
 // Parity is locked by a test vector built from a real anchored record; see
 // backend/scripts/verify-canonical.ts.

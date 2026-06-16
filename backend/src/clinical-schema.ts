@@ -1,4 +1,4 @@
-// IPP — Default Clinical Question Set for Chilean Women's-Health Intake
+// IPP - Default Clinical Question Set for Chilean Women's-Health Intake
 // (Gynecology & Pelvic-Floor). Source: clinical research deliverable v1.
 // 4 tabs (Datos personales, Antecedentes generales, Ginecología, Piso
 // pélvico). Validated instruments (ICIQ-UI SF Chilean, AUDIT-C Chilean,
@@ -32,7 +32,7 @@ const DATOS: Question[] = [
     rationale: "Convención chilena de doble apellido.", source: "Registro Civil" }),
   q("datosPersonales", 4, { id: "rut", label: "RUT", labelEn: "RUT (national ID)", type: "text", tier: "essential",
     rationale: "Identificador único nacional; validar dígito verificador con módulo 11 (resultado 10 = K, 11 = 0).",
-    source: "Servicio de Impuestos Internos / Registro Civil — algoritmo módulo 11" }),
+    source: "Servicio de Impuestos Internos / Registro Civil - algoritmo módulo 11" }),
   q("datosPersonales", 5, { id: "fechaNacimiento", label: "Fecha de nacimiento", labelEn: "Date of birth", type: "date", tier: "essential",
     rationale: "La edad determina elegibilidad de tamizajes GES (PAP 25–64; mamografía 50–59).",
     source: "Guía GES CaCu MINSAL 2015; Decreto GES N°72/2022" }),
@@ -88,7 +88,7 @@ const DATOS: Question[] = [
 const ANTECEDENTES: Question[] = [
   q("antecedentesGenerales", 1, { id: "peso", label: "Peso (kg)", labelEn: "Weight (kg)", type: "number", tier: "essential",
     rationale: "Componente del IMC; obesidad es factor de riesgo de IU y prolapso.",
-    source: "MINSAL — EMP" }),
+    source: "MINSAL - EMP" }),
   q("antecedentesGenerales", 2, { id: "talla", label: "Talla (cm)", labelEn: "Height (cm)", type: "number", tier: "essential",
     rationale: "Componente del IMC.", source: "MINSAL EMP" }),
   q("antecedentesGenerales", 3, { id: "imc", label: "IMC (calculado)", labelEn: "BMI (calculated)", type: "number", tier: "commonly",
@@ -97,7 +97,7 @@ const ANTECEDENTES: Question[] = [
     options: ["Ninguna","Hipertensión arterial (HTA)","Diabetes mellitus 2","Hipotiroidismo","Dislipidemia","Asma/EPOC","Depresión/ansiedad","Enfermedad renal crónica"],
     allowCustom: true, tier: "essential",
     rationale: "HTA/DM2/hipotiroidismo son prevalentes y modifican el manejo.",
-    source: "MINSAL — Guías GES de enfermedades crónicas" }),
+    source: "MINSAL - Guías GES de enfermedades crónicas" }),
   q("antecedentesGenerales", 5, { id: "cirugiasPrevias", label: "Cirugías previas", labelEn: "Previous surgeries", type: "multiselect",
     options: ["Ninguna","Cesárea","Histerectomía","Colecistectomía","Apendicectomía","Cirugía de incontinencia/prolapso","Esterilización quirúrgica"],
     allowCustom: true, tier: "essential",
@@ -166,12 +166,12 @@ const GINECOLOGIA: Question[] = [
   q("ginecologia", 4, { id: "estadoMenopausico", label: "Estado menopáusico", labelEn: "Menopausal status", type: "picker",
     options: ["Premenopausia","Perimenopausia","Postmenopausia"], tier: "commonly",
     rationale: "El climaterio es relevante para síntomas urogenitales y de piso pélvico.",
-    source: "MINSAL — orientaciones climaterio" }),
+    source: "MINSAL - orientaciones climaterio" }),
   q("ginecologia", 5, { id: "gestas", label: "Gestas (G)", labelEn: "Gravidity (G)", type: "number", tier: "essential",
     rationale: "Componente de la fórmula obstétrica chilena (GPA).", source: "Manual UC 2023" }),
   q("ginecologia", 6, { id: "partosVaginales", label: "Partos vaginales", labelEn: "Vaginal deliveries", type: "number", tier: "essential",
     rationale: "Los partos vaginales son el principal factor de riesgo de prolapso e IU.",
-    source: "Rev Med Clín Las Condes — prolapso genital femenino" }),
+    source: "Rev Med Clín Las Condes - prolapso genital femenino" }),
   q("ginecologia", 7, { id: "cesareas", label: "Cesáreas", labelEn: "Cesarean deliveries", type: "number", tier: "essential",
     rationale: "Componente de la fórmula obstétrica.", source: "Manual UC 2023" }),
   q("ginecologia", 8, { id: "abortos", label: "Abortos", labelEn: "Abortions/miscarriages", type: "number", tier: "essential",
@@ -194,7 +194,7 @@ const GINECOLOGIA: Question[] = [
     options: ["Ninguno","ACO combinado","Progestágeno solo (PPS)","DIU de cobre (T-Cu)","DIU/SIU hormonal (T-LNG)","Implante subdérmico","Inyectable","Preservativo","Esterilización quirúrgica","MELA/método natural"],
     allowCustom: true, tier: "essential",
     rationale: "Regulación de fertilidad; canasta del sistema público. Matronas/matrones pueden prescribir (Ley 20.533).",
-    source: "MINSAL — Normas Nacionales sobre Regulación de la Fertilidad 2014/2018" }),
+    source: "MINSAL - Normas Nacionales sobre Regulación de la Fertilidad 2014/2018" }),
   q("ginecologia", 13, { id: "fechaPap", label: "Fecha del último PAP", labelEn: "Date of last Pap smear", type: "date", tier: "essential",
     rationale: "Tamizaje CaCu GES: PAP cada 3 años en mujeres de 25 a 64 años.",
     source: "Guía GES Cáncer Cervicouterino MINSAL 2015" }),
@@ -218,7 +218,7 @@ const GINECOLOGIA: Question[] = [
   q("ginecologia", 18, { id: "itsPrevias", label: "Antecedente de ITS", labelEn: "History of STIs", type: "multiselect",
     options: ["Ninguna","VPH","Clamidia","Gonorrea","Sífilis","Herpes genital","VIH"],
     allowCustom: true, tier: "optional", hidden: true,
-    rationale: "Antecedente sexual relevante; opcional/especialidad.", source: "MINSAL — manejo de ITS" }),
+    rationale: "Antecedente sexual relevante; opcional/especialidad.", source: "MINSAL - manejo de ITS" }),
 ];
 
 const PISO: Question[] = [
@@ -227,7 +227,7 @@ const PISO: Question[] = [
     options: ["Incontinencia de orina","Urgencia / vejiga hiperactiva","Sensación de bulto / prolapso","Incontinencia fecal o de gases","Estreñimiento","Dolor / dispareunia"],
     allowCustom: true, tier: "essential",
     rationale: "Orienta y prioriza el resto del tab.",
-    source: "ICS/IUGA — terminología de disfunción del piso pélvico" }),
+    source: "ICS/IUGA - terminología de disfunción del piso pélvico" }),
   q("pisoPelvico", 2, { id: "pierdeOrina", label: "¿Pierde orina de forma involuntaria?",
     labelEn: "Do you leak urine involuntarily?", type: "boolean", tier: "essential",
     rationale: "Pregunta gatillo del ICIQ-UI SF.",
@@ -264,10 +264,10 @@ const PISO: Question[] = [
     source: "ICIQ-OAB (iciq.net/iciq-oab)" }),
   q("pisoPelvico", 8, { id: "frecuenciaMiccional", label: "¿Cuántas veces orina durante el día?",
     labelEn: "How many times do you urinate during the day?", type: "number", tier: "commonly",
-    rationale: "ICIQ-OAB — frecuencia diurna.", source: "ICIQ-OAB" }),
+    rationale: "ICIQ-OAB - frecuencia diurna.", source: "ICIQ-OAB" }),
   q("pisoPelvico", 9, { id: "nicturia", label: "¿Cuántas veces se levanta a orinar durante la noche?",
     labelEn: "How many times do you get up at night to urinate?", type: "number", tier: "commonly",
-    rationale: "ICIQ-OAB — nicturia.", source: "ICIQ-OAB" }),
+    rationale: "ICIQ-OAB - nicturia.", source: "ICIQ-OAB" }),
   q("pisoPelvico", 10, { id: "sensacionBulto", label: "¿Siente o ve un bulto que se asoma por la vagina?",
     labelEn: "Do you feel or see a bulge protruding from the vagina?", type: "boolean", tier: "essential",
     rationale: "Síntoma cardinal de prolapso de órganos pélvicos (POPDI del PFDI-20).",
@@ -327,7 +327,7 @@ const PISO: Question[] = [
 ];
 
 export const CLINICAL_SCHEMA: FormSchema = {
-  version: 1, // overridden by PUT — endpoint bumps it
+  version: 1, // overridden by PUT - endpoint bumps it
   tabs: TABS,
   questions: [...DATOS, ...ANTECEDENTES, ...GINECOLOGIA, ...PISO],
 };

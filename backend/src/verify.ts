@@ -14,7 +14,7 @@ function hexToBytes(hex: string): Uint8Array {
   return out;
 }
 
-// Canonical signing payload — must match what the iOS client signs.
+// Canonical signing payload - must match what the iOS client signs.
 // We sign UTF-8 bytes of `${patientId}|${hash}|${timestamp}` so the format is
 // stable and human-inspectable.
 export function canonicalPayload(args: {

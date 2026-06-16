@@ -3,7 +3,7 @@
 // looks like a real year of intake.
 //
 // Writes directly to Postgres (bypasses the HTTP API) so we can set
-// created_at/updated_at explicitly. Deterministic — re-running upserts by id.
+// created_at/updated_at explicitly. Deterministic - re-running upserts by id.
 //
 //   cd backend
 //   bun run scripts/seed-year.ts
@@ -199,7 +199,7 @@ function generatePasscode(): string {
   return randomInt(0, 1_000_000).toString().padStart(6, "0");
 }
 
-// Birth date string derived from age and the seeded rng — pinned to NOW.
+// Birth date string derived from age and the seeded rng - pinned to NOW.
 function birthDateForAge(age: number, rng: () => number): string {
   const dayJitter = Math.floor(rng() * 365);
   const d = new Date(NOW.getTime() - (age * 365.25 + dayJitter) * 86400_000);
@@ -370,7 +370,7 @@ for (let start = 1; start <= TOTAL; start += CHUNK) {
   const end = Math.min(start + CHUNK - 1, TOTAL);
   const batch = Array.from({ length: end - start + 1 }, (_, i) => buildPatient(start + i));
 
-  // Each row gets its own INSERT inside one transaction — keeps the SQL
+  // Each row gets its own INSERT inside one transaction - keeps the SQL
   // simple while still being ~50× faster than separate HTTP calls.
   await sql.begin(async (tx) => {
     for (const p of batch) {
@@ -430,7 +430,7 @@ console.log(`\nDone in ${(elapsedMs / 1000).toFixed(1)}s. ${inserted} rows.\n`);
 console.log("By city:");
 for (const [k, v] of Object.entries(byCity).sort()) console.log(`  ${k.padEnd(16)} ${v}`);
 console.log("\nBy doctor:");
-for (const r of byDoctor) console.log(`  ${(r.doctor_name ?? "—").padEnd(16)} ${r.n}`);
+for (const r of byDoctor) console.log(`  ${(r.doctor_name ?? "-").padEnd(16)} ${r.n}`);
 console.log("\nBy month:");
 for (const r of byMonth) console.log(`  ${r.ym}  ${r.n}`);
 

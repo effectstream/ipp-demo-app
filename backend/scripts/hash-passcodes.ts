@@ -15,7 +15,7 @@ const cols = await sql<{ column_name: string }[]>`
   WHERE table_name = 'patients' AND column_name = 'passcode'
 `;
 if (cols.length === 0) {
-  console.log("No plaintext `passcode` column — nothing to migrate.");
+  console.log("No plaintext `passcode` column - nothing to migrate.");
   await sql.end();
   process.exit(0);
 }

@@ -17,8 +17,11 @@ export interface PatientUpsertRequest {
 
 export interface LeaderboardEntry {
   doctor: string;
-  total: number;
-  last30: number;
+  total: number;    // patients registered (kept for display)
+  last30: number;   // patients in the last 30 days
+  fields: number;   // filled response fields across their patients
+  searches: number; // logged search events
+  points: number;   // 1000·patients + 20·fields + 10·searches
 }
 
 export interface PatientRow {
@@ -39,6 +42,21 @@ export interface MapPin {
   id: string;
   latitude: number;
   longitude: number;
+  // SHA-256(rut) - non-identifying key used to look up the patient's on-chain
+  // anchor (the same key the chain adapter anchors under).
+  anchorKey: string;
+}
+
+// Anonymized pin enriched with non-identifying medical/population stats, served
+// by GET /api/v1/map-stats for the map's population-study filters. `stats` is a
+// projection of data.responses restricted to filterable, non-identifying
+// fields (plus a derived `edad`); names, RUT, contact and address never appear.
+export interface MapStatPin {
+  id: string;
+  latitude: number;
+  longitude: number;
+  anchorKey: string;
+  stats: Record<string, unknown>;
 }
 
 export type QuestionType =
@@ -60,6 +78,9 @@ export interface Question {
   allowCustom?: boolean;     // For multiselect: can the user add their own entries?
   placeholder?: string;
   hidden?: boolean;
+  // Whether this question is offered as a filter on the population map. When
+  // unset, the map falls back to a type-based default (see /map-stats).
+  filterable?: boolean;
   // Conditional visibility: show this question only when the value of
   // dependsOn equals dependsOnValue. Kept loosely-typed so the schema can
   // depend on any answer shape.
@@ -87,6 +108,16 @@ export interface FormSchema {
   questions: Question[];
 }
 
+// Free-text feedback from a doctor. `sender` is the authenticated username, or
+// null when the doctor opted to send anonymously.
+export interface FeedbackEntry {
+  id: number;
+  sender: string | null;
+  anonymous: boolean;
+  message: string;
+  createdAt: string;
+}
+
 export interface AnchoredHash {
   id: number;
   patientId: string;
@@ -102,7 +133,7 @@ export interface AnchoredHash {
 export interface AnchorContext {
   patientId: string;
   rut: string;
-  // Hex of SHA-256(canonical patient JSON) — becomes the value on chain.
+  // Hex of SHA-256(canonical patient JSON) - becomes the value on chain.
   hash: string;
   publicKey: string;
   signature: string;

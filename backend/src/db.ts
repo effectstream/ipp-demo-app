@@ -90,8 +90,51 @@ export async function initSchema(): Promise<void> {
     )
   `;
 
+  // studies: a published snapshot whose Merkle root (over the included record
+  // hashes) is anchored on chain. Lets anyone validate a study's dataset
+  // against the on-chain root without the records ever going on chain.
+  await sql`
+    CREATE TABLE IF NOT EXISTS studies (
+      id UUID PRIMARY KEY,
+      title TEXT,
+      root TEXT NOT NULL,
+      members JSONB NOT NULL,
+      member_count INT NOT NULL,
+      chain_key TEXT NOT NULL,
+      chain_tx_id TEXT,
+      chain_name TEXT NOT NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `;
+
+  // doctor_events: append-only log of point-scoring actions (currently
+  // searches). Patient/field points are derived from the patients table; only
+  // searches need explicit logging since they don't persist elsewhere.
+  await sql`
+    CREATE TABLE IF NOT EXISTS doctor_events (
+      id BIGSERIAL PRIMARY KEY,
+      doctor TEXT NOT NULL,
+      type TEXT NOT NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `;
+  await sql`CREATE INDEX IF NOT EXISTS idx_doctor_events_doctor ON doctor_events(doctor, type)`;
+
+  // feedback: free-text notes from doctors. `sender` is the authenticated
+  // username (NULL when sent anonymously).
+  await sql`
+    CREATE TABLE IF NOT EXISTS feedback (
+      id BIGSERIAL PRIMARY KEY,
+      sender TEXT,
+      anonymous BOOLEAN NOT NULL DEFAULT false,
+      message TEXT NOT NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `;
+  await sql`CREATE INDEX IF NOT EXISTS idx_feedback_created ON feedback(created_at DESC)`;
+
   // Singleton row holding the current form schema. Constraint locks id=1
-  // so we can't accidentally store multiple schemas — this is the
+  // so we can't accidentally store multiple schemas - this is the
   // single source of truth that the iOS and web clients read.
   await sql`
     CREATE TABLE IF NOT EXISTS form_schema (

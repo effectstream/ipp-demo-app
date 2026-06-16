@@ -3,7 +3,7 @@
 // The hashes in anchored_hashes were computed by the iOS client
 // (PatientHasher.sha256Hex) over each patient's canonical JSON. This script
 // recomputes them server-side with backend/src/canonical.ts and asserts they
-// match — proving the two independent canonicalizers (Swift + TS) agree.
+// match - proving the two independent canonicalizers (Swift + TS) agree.
 //
 //   cd backend && bun run scripts/verify-canonical.ts
 //
@@ -15,7 +15,7 @@ import { canonicalJSON, hashPatientData } from "../src/canonical.ts";
 
 // 1) Offline parity vector: the bytes a real Foundation.JSONEncoder produced
 // (scripts/fixtures/canon-reference.{swift,json}). canonicalJSON() must
-// reproduce them exactly — this is the cross-language lock and needs no DB.
+// reproduce them exactly - this is the cross-language lock and needs no DB.
 const referenceBytes = await Bun.file(
   new URL("./fixtures/canon-reference.json", import.meta.url),
 ).text();
@@ -54,7 +54,7 @@ const rows = await sql<Row[]>`
 
 if (rows.length === 0) {
   console.log(
-    "No anchored_hashes rows joined to an existing patient — nothing to verify.\n" +
+    "No anchored_hashes rows joined to an existing patient - nothing to verify.\n" +
       "Anchor at least one patient (iOS → /patient-hash) to build a parity vector.",
   );
   await sql.end();

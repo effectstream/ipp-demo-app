@@ -23,7 +23,7 @@ if (!res.ok) {
   process.exit(1);
 }
 const stored = (await res.json()) as FormSchema;
-console.log(`schema applied — v${stored.version}`);
+console.log(`schema applied - v${stored.version}`);
 console.log(`  tabs:      ${stored.tabs.length}`);
 console.log(`  questions: ${stored.questions.length}`);
 const byTab: Record<string, number> = {};
