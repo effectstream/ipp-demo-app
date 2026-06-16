@@ -49,15 +49,15 @@ final class EffectStreamClient {
         self.init(baseURL: url)
     }
 
-    func anchorPatientHash(patientId: String, hashHex: String) async throws -> AnchorResponse {
+    func anchorPatientHash(patientId: String, hashHex: String, wallet: Wallet) async throws -> AnchorResponse {
         let timestampMs = Int(Date().timeIntervalSince1970 * 1000)
         let payload = "\(patientId)|\(hashHex)|\(timestampMs)"
-        let signature = Wallet.shared.sign(Data(payload.utf8))
+        let signature = wallet.sign(Data(payload.utf8))
 
         let body: [String: Any] = [
             "patientId": patientId,
             "hash": hashHex,
-            "publicKey": Wallet.shared.publicKeyHex,
+            "publicKey": wallet.publicKeyHex,
             "signature": signature,
             "timestamp": timestampMs,
         ]

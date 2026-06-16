@@ -10,6 +10,8 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@noble/ed25519": "^2.1.0",
+    "@noble/hashes": "^1.5.0",
     "leaflet": "^1.9.4",
     "leaflet.heat": "^0.2.0",
     "react": "^18.3.1",
