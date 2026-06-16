@@ -106,6 +106,17 @@ export async function initSchema(): Promise<void> {
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     )
   `;
+  // Additive migration: cohort-scoped, export-bound studies.
+  //   `root`           = Merkle root over the cohort's record hashes.
+  //   `export_hash`    = SHA-256 of the exported data file this study certifies.
+  //   `anchored_value` = the value actually on chain:
+  //                      export_hash ? sha256(root ‖ export_hash) : root.
+  //   `filter_*`       = the cohort selection that produced the export (provenance).
+  // `members` JSONB now also carries each member's `id` (alongside rut, hash).
+  await sql`ALTER TABLE studies ADD COLUMN IF NOT EXISTS filter_description TEXT`;
+  await sql`ALTER TABLE studies ADD COLUMN IF NOT EXISTS filter_json JSONB`;
+  await sql`ALTER TABLE studies ADD COLUMN IF NOT EXISTS export_hash TEXT`;
+  await sql`ALTER TABLE studies ADD COLUMN IF NOT EXISTS anchored_value TEXT`;
 
   // doctor_events: append-only log of point-scoring actions (currently
   // searches). Patient/field points are derived from the patients table; only
