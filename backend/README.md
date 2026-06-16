@@ -11,7 +11,8 @@ Stores patients in Neon Postgres; anchors signed hashes via a swappable
 | `DATABASE_URL` | _(required)_             | Postgres connection string. Neon requires `sslmode=require`. |
 | `PORT`         | `3334`                   |                                                      |
 | `HOST`         | `0.0.0.0`                |                                                      |
-| `CHAIN`        | `local`                  | `local` (no-op) or `midnight` (currently throws).    |
+| `CHAIN`        | `local`                  | `local` (no-op) or `cardano` (anchors hashes in Cardano tx metadata via the EffectStream/yaci devnet). |
+| `CARDANO_*`    | _(see `.env.example`)_   | Dolos/Yaci URLs, pglite read URL, optional wallet seed (when `CHAIN=cardano`). |
 
 ## Tables
 
