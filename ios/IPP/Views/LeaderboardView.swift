@@ -13,35 +13,26 @@ struct LeaderboardView: View {
         NavigationStack {
             List {
                 if let username = session.username {
-                    Section("Mi cuenta") {
-                        HStack {
-                            Image(systemName: "person.crop.circle.fill")
-                                .foregroundStyle(Color.accentColor)
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(username).font(.callout.weight(.semibold))
-                                if let addr = session.walletAddress {
-                                    Text(CardanoWallet.shortAddress(addr))
-                                        .font(.caption.monospaced())
-                                        .foregroundStyle(.secondary)
-                                }
-                            }
-                        }
+                    Section {
+                        heroCard(username: username)
+                            .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
+                            .listRowBackground(Color.clear)
                     }
                 } else if session.isViewer {
                     Section("Mi cuenta") {
-                        Text("Visitante — sin atribución en el ranking.")
+                        Text("Visitante - sin atribución en el ranking.")
                             .font(.callout)
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(Color.ippBody)
                     }
                 }
 
-                Section("Ranking") {
+                Section {
                     if loading {
                         HStack { ProgressView(); Text("Cargando…") }
                     } else if let error {
                         Text(error).foregroundStyle(.red)
                     } else if entries.isEmpty {
-                        Text("Sin datos todavía.").foregroundStyle(.secondary)
+                        Text("Sin datos todavía.").foregroundStyle(Color.ippMuted)
                     } else {
                         ForEach(Array(entries.enumerated()), id: \.element.id) { idx, entry in
                             LeaderboardRow(
@@ -51,9 +42,15 @@ struct LeaderboardView: View {
                             )
                         }
                     }
+                } header: {
+                    Text("Tabla del equipo")
+                } footer: {
+                    Text("Puntos: +1000 por ficha · +20 por campo · +10 por búsqueda.")
                 }
             }
-            .navigationTitle("Ranking de ingresos")
+            .scrollContentBackground(.hidden)
+            .background(Color.ippScreen)
+            .navigationTitle("Ranking de puntos")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
@@ -67,6 +64,36 @@ struct LeaderboardView: View {
             }
             .task { await load() }
         }
+    }
+
+    private func heroCard(username: String) -> some View {
+        let mine = entries.first { $0.doctor == username }
+        let rank = entries.firstIndex { $0.doctor == username }.map { $0 + 1 }
+        return VStack(alignment: .leading, spacing: 6) {
+            Text("Tus puntos")
+                .font(.subheadline.weight(.medium))
+                .foregroundStyle(.white.opacity(0.85))
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                Text((mine?.points ?? 0).formatted())
+                    .font(.system(size: 34, weight: .bold))
+                    .monospacedDigit()
+                    .foregroundStyle(.white)
+                if let rank {
+                    Text("· #\(rank) de \(entries.count)")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(.white.opacity(0.85))
+                }
+            }
+            if let addr = session.walletAddress {
+                Text(CardanoWallet.shortAddress(addr))
+                    .font(.caption.monospaced())
+                    .foregroundStyle(.white.opacity(0.8))
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(18)
+        .background(LinearGradient.ippBrand)
+        .clipShape(RoundedRectangle(cornerRadius: 16))
     }
 
     private func load() async {
@@ -88,9 +115,9 @@ private struct LeaderboardRow: View {
 
     private var medalColor: Color? {
         switch rank {
-        case 1: return Color(red: 0.95, green: 0.78, blue: 0.18)   // gold
-        case 2: return Color(red: 0.75, green: 0.78, blue: 0.82)   // silver
-        case 3: return Color(red: 0.80, green: 0.50, blue: 0.20)   // bronze
+        case 1: return Color(red: 0.95, green: 0.78, blue: 0.18)
+        case 2: return Color(red: 0.75, green: 0.78, blue: 0.82)
+        case 3: return Color(red: 0.80, green: 0.50, blue: 0.20)
         default: return nil
         }
     }
@@ -99,27 +126,30 @@ private struct LeaderboardRow: View {
         HStack(spacing: 12) {
             ZStack {
                 Circle()
-                    .fill(isMe ? Color.accentColor.opacity(0.15) : Color(.tertiarySystemFill))
+                    .fill(isMe ? Color.ippTint : Color(.tertiarySystemFill))
                     .frame(width: 36, height: 36)
                 if let medalColor {
                     Image(systemName: "trophy.fill")
                         .foregroundStyle(medalColor)
                         .font(.title3)
                 } else {
-                    Text("\(rank)").font(.callout.bold()).foregroundStyle(.secondary)
+                    Text("\(rank)").font(.callout.bold()).foregroundStyle(Color.ippMuted)
                 }
             }
             VStack(alignment: .leading, spacing: 2) {
                 Text(entry.doctor)
                     .font(.callout.weight(isMe ? .semibold : .regular))
-                Text("\(entry.last30) en los últimos 30 días")
+                    .foregroundStyle(Color.ippInk)
+                Text("\(entry.total) fichas · \(entry.fields) campos · \(entry.searches) búsq.")
                     .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Color.ippMuted)
             }
             Spacer()
             VStack(alignment: .trailing, spacing: 2) {
-                Text("\(entry.total)").font(.title3.monospacedDigit().bold())
-                Text("ingresos").font(.caption2).foregroundStyle(.secondary)
+                Text(entry.points.formatted())
+                    .font(.title3.monospacedDigit().bold())
+                    .foregroundStyle(Color.ippTeal)
+                Text("puntos").font(.caption2).foregroundStyle(Color.ippMuted)
             }
         }
         .padding(.vertical, 2)

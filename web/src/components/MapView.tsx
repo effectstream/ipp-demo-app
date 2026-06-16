@@ -2,8 +2,12 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { MapContainer, TileLayer, CircleMarker, Tooltip, Popup, useMap } from "react-leaflet";
 import L from "leaflet";
 import "leaflet.heat";
-import { fetchMapPins } from "../api";
-import type { MapPin } from "../types";
+import { fetchMapPins, fetchMapStats, fetchSchema } from "../api";
+import type { FormSchema, MapPin, MapStatPin } from "../types";
+import { activeFilters, deriveStatFields, matchesAll, type StatFilter } from "../mapStats";
+import { cohortToCSV, downloadCSV } from "../csv";
+import { MapFilters } from "./MapFilters";
+import { PinVerify } from "./PinVerify";
 import type { Annotation } from "../annotations";
 import { loadAnnotations, saveAnnotations, newId } from "../annotations";
 import { AnnotationsLayer } from "./AnnotationsLayer";
@@ -16,36 +20,53 @@ const DEFAULT_CENTER: [number, number] = [-33.45, -70.66];
 
 interface HeatLayerProps {
   points: MapPin[];
-  radius: number;
-  blur: number;
+  radiusKm: number;
 }
 
-function HeatLayer({ points, radius, blur }: HeatLayerProps) {
+function HeatLayer({ points, radiusKm }: HeatLayerProps) {
   const map = useMap();
+  // Re-render the layer on zoom so the radius stays a fixed ground distance.
+  const [zoom, setZoom] = useState(() => map.getZoom());
+  useEffect(() => {
+    const onZoom = () => setZoom(map.getZoom());
+    map.on("zoomend", onZoom);
+    return () => {
+      map.off("zoomend", onZoom);
+    };
+  }, [map]);
 
   useEffect(() => {
     if (points.length === 0) return;
+    // Convert the real-world radius (km) to screen pixels at the current zoom
+    // and latitude (Web-Mercator ground resolution), so the heatmap kernel
+    // represents a constant distance on the ground rather than a fixed pixel size.
+    const lat = map.getCenter().lat;
+    const metersPerPixel =
+      (40075016.686 * Math.abs(Math.cos((lat * Math.PI) / 180))) /
+      Math.pow(2, zoom + 8);
+    const radiusPx = Math.max(6, Math.min(140, (radiusKm * 1000) / metersPerPixel));
+    const blur = Math.round(radiusPx * 0.65);
     const latlngs = points.map(
       (p): [number, number, number] => [p.latitude, p.longitude, 1]
     );
     const layer = L.heatLayer(latlngs, {
-      radius,
+      radius: radiusPx,
       blur,
       maxZoom: 17,
       minOpacity: 0.35,
       gradient: {
-        0.2: "#2563eb",
-        0.4: "#22d3ee",
-        0.6: "#fde047",
-        0.8: "#fb923c",
-        1.0: "#dc2626",
+        0.2: "#cfe8e6",
+        0.4: "#6fbfb8",
+        0.6: "#2a9d94",
+        0.8: "#0e726e",
+        1.0: "#0a5450",
       },
     });
     layer.addTo(map);
     return () => {
       map.removeLayer(layer);
     };
-  }, [map, points, radius, blur]);
+  }, [map, points, radiusKm, zoom]);
 
   return null;
 }
@@ -63,8 +84,14 @@ function FitToPins({ points }: { points: MapPin[] }) {
 export function MapView() {
   const [pins, setPins] = useState<MapPin[] | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [radius, setRadius] = useState(28);
+  const [radiusKm, setRadiusKm] = useState(2);
   const [showPins, setShowPins] = useState(true);
+
+  // Population-study filters: the richer (signed) stats dataset + schema.
+  const [statPins, setStatPins] = useState<MapStatPin[] | null>(null);
+  const [statErr, setStatErr] = useState<string | null>(null);
+  const [schema, setSchema] = useState<FormSchema | null>(null);
+  const [filters, setFilters] = useState<StatFilter[]>([]);
 
   // Annotations: hydrate from localStorage once, then persist on every change.
   const [annotations, setAnnotations] = useState<Annotation[]>(() => loadAnnotations());
@@ -136,8 +163,54 @@ export function MapView() {
     };
   }, []);
 
-  const isLoading = pins == null && !error;
-  const blur = useMemo(() => Math.round(radius * 0.65), [radius]);
+  // Pull the richer (signed) stats dataset + schema so the filter panel can
+  // offer whichever questions are marked filterable. The base heatmap keeps
+  // working from map-pins meanwhile, and an error here never breaks the map.
+  useEffect(() => {
+    let cancelled = false;
+    Promise.all([fetchMapStats(), fetchSchema()])
+      .then(([sp, sc]) => {
+        if (cancelled) return;
+        setStatPins(sp);
+        setSchema(sc);
+      })
+      .catch((err: unknown) => {
+        if (!cancelled) setStatErr(err instanceof Error ? err.message : String(err));
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const isLoading = pins == null && statPins == null && !error && !statErr;
+
+  const fields = useMemo(
+    () => (schema && statPins ? deriveStatFields(schema, statPins) : []),
+    [schema, statPins],
+  );
+  const active = useMemo(() => activeFilters(filters), [filters]);
+  // Once stats load they're the source of truth (they carry coords too);
+  // map-pins is just the fast/fallback base layer before stats arrive.
+  const source: MapPin[] = statPins ?? pins ?? [];
+  const canFilter = statPins != null && fields.length > 0;
+  // Heatmap + markers reflect the active filters; the fit-to-bounds uses the
+  // full set so tweaking a filter never re-zooms the map.
+  const visiblePins = useMemo<MapPin[]>(
+    () => (canFilter ? statPins!.filter((p) => matchesAll(p, active)) : source),
+    [canFilter, statPins, active, source],
+  );
+  const totalCount = source.length;
+  const filtering = canFilter && active.length > 0;
+
+  // The filtered cohort as full stat rows, for CSV export.
+  const filteredStats = useMemo<MapStatPin[]>(
+    () => (statPins ? (canFilter ? statPins.filter((p) => matchesAll(p, active)) : statPins) : []),
+    [statPins, canFilter, active],
+  );
+  const exportCsv = useCallback(() => {
+    if (filteredStats.length === 0) return;
+    downloadCSV(`ipp-cohorte-${filteredStats.length}.csv`, cohortToCSV(filteredStats, fields));
+  }, [filteredStats, fields]);
 
   return (
     <section className="card">
@@ -147,18 +220,31 @@ export function MapView() {
         para tu uso (se guardan sólo en este navegador).
       </p>
 
+      <MapFilters
+        fields={fields}
+        filters={filters}
+        onChange={setFilters}
+        shown={visiblePins.length}
+        total={totalCount}
+        loading={statPins == null && statErr == null}
+        error={statErr}
+        onExport={exportCsv}
+      />
+
       <div className="map-controls">
         <label className="slider">
           <span>Radio de afectación</span>
           <input
             type="range"
-            min={10}
-            max={70}
-            step={1}
-            value={radius}
-            onChange={(e) => setRadius(Number(e.target.value))}
+            min={0.5}
+            max={15}
+            step={0.5}
+            value={radiusKm}
+            onChange={(e) => setRadiusKm(Number(e.target.value))}
           />
-          <span className="slider-value">{radius}px</span>
+          <span className="slider-value">
+            {radiusKm.toLocaleString("es", { minimumFractionDigits: 1 })} km
+          </span>
         </label>
         <label className="checkbox">
           <input
@@ -221,14 +307,12 @@ export function MapView() {
             attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
             url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
           />
-          {pins && pins.length > 0 && (
-            <>
-              <FitToPins points={pins} />
-              <HeatLayer points={pins} radius={radius} blur={blur} />
-            </>
+          {source.length > 0 && <FitToPins points={source} />}
+          {visiblePins.length > 0 && (
+            <HeatLayer points={visiblePins} radiusKm={radiusKm} />
           )}
           {showPins &&
-            pins?.map((pin) => {
+            visiblePins.map((pin) => {
               const wallet = walletForPatient(pin.id);
               return (
                 <CircleMarker
@@ -236,9 +320,9 @@ export function MapView() {
                   center={[pin.latitude, pin.longitude]}
                   radius={5}
                   pathOptions={{
-                    color: "#1e3a8a",
+                    color: "#0a5450",
                     weight: 1,
-                    fillColor: "#1d4ed8",
+                    fillColor: "#0e726e",
                     fillOpacity: 0.85,
                   }}
                 >
@@ -255,6 +339,7 @@ export function MapView() {
                       <div className="wallet-popup-meta">
                         Billetera Cardano (simulada)
                       </div>
+                      <PinVerify anchorKey={pin.anchorKey} />
                     </div>
                   </Popup>
                 </CircleMarker>
@@ -276,13 +361,19 @@ export function MapView() {
       </div>
 
       <div className="map-footer">
-        {pins && <span className="hint">{pins.length} pacientes registrados</span>}
+        {(pins || statPins) && (
+          <span className="hint">
+            {filtering
+              ? `${visiblePins.length.toLocaleString("es")} de ${totalCount.toLocaleString("es")} pacientes`
+              : `${totalCount.toLocaleString("es")} pacientes registrados`}
+          </span>
+        )}
         <span className="legend">
-          <span className="legend-swatch" style={{ background: "#2563eb" }} />
-          <span className="legend-swatch" style={{ background: "#22d3ee" }} />
-          <span className="legend-swatch" style={{ background: "#fde047" }} />
-          <span className="legend-swatch" style={{ background: "#fb923c" }} />
-          <span className="legend-swatch" style={{ background: "#dc2626" }} />
+          <span className="legend-swatch" style={{ background: "#cfe8e6" }} />
+          <span className="legend-swatch" style={{ background: "#6fbfb8" }} />
+          <span className="legend-swatch" style={{ background: "#2a9d94" }} />
+          <span className="legend-swatch" style={{ background: "#0e726e" }} />
+          <span className="legend-swatch" style={{ background: "#0a5450" }} />
           <span className="legend-label">menos · más</span>
         </span>
       </div>
@@ -292,6 +383,11 @@ export function MapView() {
       {pins && pins.length === 0 && !error && (
         <p className="hint" style={{ marginTop: 10 }}>
           Sin pacientes con ubicación registrada.
+        </p>
+      )}
+      {filtering && visiblePins.length === 0 && (
+        <p className="hint" style={{ marginTop: 10 }}>
+          Ningún paciente coincide con los filtros seleccionados.
         </p>
       )}
 

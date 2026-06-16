@@ -1,4 +1,4 @@
-// Login session — mock today, will be derived from a real Cardano wallet
+// Login session - mock today, will be derived from a real Cardano wallet
 // once we wire the keypair generation in.
 
 export interface Session {

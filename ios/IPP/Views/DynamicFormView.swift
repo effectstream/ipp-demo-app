@@ -6,6 +6,7 @@ import SwiftUI
 struct DynamicFormView: View {
     let tabId: String
     @Binding var responses: [String: ResponseValue]
+    var stats: FieldStatsBundle?
     @EnvironmentObject private var schemaService: SchemaService
 
     private var schema: FormSchema { schemaService.schema }
@@ -26,26 +27,67 @@ struct DynamicFormView: View {
         Form {
             ForEach(questionsForTab, id: \.id) { question in
                 if isVisible(question) {
-                    QuestionRow(question: question, responses: $responses)
+                    QuestionRow(question: question, responses: $responses, stats: stats)
                 }
             }
         }
+        .scrollContentBackground(.hidden)
+        .background(Color.ippScreen)
     }
 }
 
 private struct QuestionRow: View {
     let question: Question
     @Binding var responses: [String: ResponseValue]
+    var stats: FieldStatsBundle?
 
     var body: some View {
+        let line = statLine()
         switch question.type {
         case .text:        TextRow(question: question, value: textBinding)
-        case .number:      NumberRow(question: question, value: numberBinding)
-        case .boolean:     BoolRow(question: question, value: boolBinding)
+        case .number:      NumberRow(question: question, value: numberBinding, statLine: line)
+        case .boolean:     BoolRow(question: question, value: boolBinding, statLine: line)
         case .multiselect: MultiselectRow(question: question, value: stringsBinding)
-        case .picker:      PickerRow(question: question, value: textBinding)
+        case .picker:      PickerRow(question: question, value: textBinding, statLine: line)
         case .date:        DateRow(question: question, value: textBinding)
         case .address:     AddressRow(question: question, address: addressBinding)
+        }
+    }
+
+    // One discreet line comparing the population: local / país / mundo. Numbers
+    // show averages, booleans the % "sí", pickers the selected option's share.
+    private func statLine() -> String? {
+        guard let stats else { return nil }
+        let id = question.id
+        func fmt(_ d: Double) -> String {
+            d.truncatingRemainder(dividingBy: 1) == 0 ? "\(Int(d))" : String(format: "%.1f", d)
+        }
+        func pct(_ d: Double) -> String { "\(Int((d * 100).rounded()))%" }
+
+        switch question.type {
+        case .number:
+            let parts = [
+                stats.local?.fields[id]?.mean.map { "local \(fmt($0))" },
+                stats.country.fields[id]?.mean.map { "país \(fmt($0))" },
+                stats.world?.fields[id]?.mean.map { "mundo \(fmt($0))" },
+            ].compactMap { $0 }
+            return parts.isEmpty ? nil : "Promedio · " + parts.joined(separator: " · ")
+        case .boolean:
+            let parts = [
+                stats.local?.fields[id]?.pctTrue.map { "local \(pct($0))" },
+                stats.country.fields[id]?.pctTrue.map { "país \(pct($0))" },
+                stats.world?.fields[id]?.pctTrue.map { "mundo \(pct($0))" },
+            ].compactMap { $0 }
+            return parts.isEmpty ? nil : "Sí · " + parts.joined(separator: " · ")
+        case .picker:
+            guard let sel = responses[id]?.asText, !sel.isEmpty else { return nil }
+            let parts = [
+                stats.local?.fields[id]?.freq?[sel].map { "local \(pct($0))" },
+                stats.country.fields[id]?.freq?[sel].map { "país \(pct($0))" },
+            ].compactMap { $0 }
+            return parts.isEmpty ? nil : "\(sel) · " + parts.joined(separator: " · ")
+        default:
+            return nil
         }
     }
 
@@ -130,11 +172,13 @@ private struct TextRow: View {
 private struct NumberRow: View {
     let question: Question
     @Binding var value: String
+    var statLine: String? = nil
 
     var body: some View {
         Section(question.label) {
             TextField(question.placeholder ?? "0", text: $value)
                 .keyboardType(.numberPad)
+            if let statLine { StatCaption(text: statLine) }
         }
     }
 }
@@ -142,10 +186,12 @@ private struct NumberRow: View {
 private struct BoolRow: View {
     let question: Question
     @Binding var value: Bool
+    var statLine: String? = nil
 
     var body: some View {
         Section {
             Toggle(question.label, isOn: $value)
+            if let statLine { StatCaption(text: statLine) }
         }
     }
 }
@@ -169,6 +215,7 @@ private struct MultiselectRow: View {
 private struct PickerRow: View {
     let question: Question
     @Binding var value: String
+    var statLine: String? = nil
 
     var body: some View {
         Section(question.label) {
@@ -178,7 +225,18 @@ private struct PickerRow: View {
                     Text(opt).tag(opt)
                 }
             }
+            if let statLine { StatCaption(text: statLine) }
         }
+    }
+}
+
+// Discreet population comparison shown under a field.
+private struct StatCaption: View {
+    let text: String
+    var body: some View {
+        Label(text, systemImage: "chart.bar.xaxis")
+            .font(.caption2)
+            .foregroundStyle(.secondary)
     }
 }
 

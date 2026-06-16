@@ -4,7 +4,7 @@ import CoreLocation
 
 // Wraps MKLocalSearchCompleter as an ObservableObject so SwiftUI views can
 // observe typeahead suggestions. Biased toward Chile by setting the
-// completer's region — results elsewhere still appear, just lower in rank.
+// completer's region - results elsewhere still appear, just lower in rank.
 @MainActor
 final class AddressSearchModel: NSObject, ObservableObject, MKLocalSearchCompleterDelegate {
     @Published var queryFragment: String = ""
@@ -60,7 +60,7 @@ final class AddressSearchModel: NSObject, ObservableObject, MKLocalSearchComplet
     }
 
     // Forward-geocode a free-text address (used when no typeahead pick exists
-    // — e.g. opening an existing patient whose record was saved before this
+    // - e.g. opening an existing patient whose record was saved before this
     // picker existed).
     static func geocode(_ text: String) async throws -> ResolvedAddress {
         let geo = CLGeocoder()

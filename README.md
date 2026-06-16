@@ -2,7 +2,7 @@
 
 iPhone app for doctors and medical staff to capture patient records (Spanish UI),
 backed by a Bun HTTP service that stores patients in Neon Postgres and (eventually)
-anchors a hash of each record on Midnight so the data can be cryptographically
+anchors a hash of each record on Cardano so the data can be cryptographically
 verified later.
 
 ## Repository layout
@@ -17,7 +17,7 @@ verified later.
 │   │   ├── types.ts
 │   │   └── adapters/
 │   │       ├── local.ts       # No-op chain adapter (default)
-│   │       └── midnight.ts    # TODO: wire @effectstream/batcher-sdk
+│   │       └── cardano.ts     # Cardano anchoring - Lucid → Yaci tx metadata
 │   ├── .env.example
 │   └── package.json
 ├── ios/
@@ -34,11 +34,12 @@ verified later.
 │   │   ├── api.ts             # backend client
 │   │   └── types.ts
 │   └── vite.config.ts
-├── midnight/                  # EffectStream workspace — Compact contract + batcher
+├── cardano/                   # EffectStream workspace - local Cardano devnet + sync
 │   ├── packages/
-│   │   ├── contracts-midnight/contract-anchor/    # Map<Bytes<32>, Bytes<32>> anchor
-│   │   └── batcher/                                # @effectstream/batcher-sdk
-│   └── start.dev.ts           # orchestrator config (Midnight node + batcher)
+│   │   ├── contracts-cardano/  # yaci-devkit + Dolos config, Lucid tx helpers
+│   │   ├── node/               # CardanoTransfer primitive + STM → ipp_anchors
+│   │   └── database/           # ipp_anchors migration
+│   └── start.dev.ts           # orchestrator (yaci + Dolos + pglite + sync node)
 └── README.md
 ```
 
@@ -52,7 +53,7 @@ verified later.
 │ APIPatientStore  │  GET  /patients     │  anchored_hashes     │     │              │
 │ Wallet (ed25519) │ ◀────────────────── │                      │     └──────────────┘
 │ Hasher (SHA-256) │  POST /patient-hash │  ChainAdapter        │
-│ MapKit picker    │ ──────────────────▶ │   local / midnight   │
+│ MapKit picker    │ ──────────────────▶ │   local / cardano    │
 └──────────────────┘                     └──────────────────────┘
 ```
 
@@ -63,7 +64,7 @@ to columns for indexing/map queries; the full record lives in the `data` JSONB.
 
 **Passcodes.** On first insert the backend generates a 6-digit numeric
 passcode, stores only its HMAC-SHA256 (`PASSCODE_SECRET`), and returns the
-plaintext exactly **once** in the create response — iOS surfaces it in the
+plaintext exactly **once** in the create response - iOS surfaces it in the
 Datos personales tab with a copy button so the doctor can share it. Reads and
 lookup never return it again. `/api/v1/lookup` compares the passcode against
 the stored HMAC (constant-time) and is rate-limited per rut+IP (5 tries /
@@ -71,7 +72,7 @@ the stored HMAC (constant-time) and is rate-limited per rut+IP (5 tries /
 records the form `schema_version` it was captured under.
 
 **Hash anchor.** Separately, iOS computes SHA-256 of the canonical JSON
-encoding of the patient (passcode field stripped — see `Patient.canonicalCopy()`),
+encoding of the patient (passcode field stripped - see `Patient.canonicalCopy()`),
 signs `${patientId}|${hash}|${timestamp}` with an in-memory Curve25519 key,
 and posts to `/api/v1/patient-hash`. The backend verifies the signature and
 appends a row to `anchored_hashes`.
@@ -81,7 +82,7 @@ appends a row to `anchored_hashes`.
 | Method | Path                              | Notes                                                    |
 |--------|-----------------------------------|----------------------------------------------------------|
 | GET    | `/health`                         | Liveness                                                 |
-| GET    | `/api/v1/patients`                | List (full rows — doctor's view)                         |
+| GET    | `/api/v1/patients`                | List (full rows - doctor's view)                         |
 | GET    | `/api/v1/patients/:id`            | One row                                                  |
 | POST   | `/api/v1/patients`                | Upsert; first insert generates a passcode                |
 | DELETE | `/api/v1/patients/:id`            |                                                          |
@@ -142,55 +143,57 @@ grants ATS exceptions for local-network HTTP.
 
 ## Verified on
 
-- iPhone 17 Pro simulator (iOS 26.3) — iOS reads/writes `patients` rows in
+- iPhone 17 Pro simulator (iOS 26.3) - iOS reads/writes `patients` rows in
   Neon Postgres, passcode (6-digit) surfaces in the Datos personales tab
   with a copy button, MapKit address picker geocodes Chilean addresses and
   renders the map preview.
-- Web (Chromium via Claude Preview) — anonymized map shows pins from
+- Web (Chromium via Claude Preview) - anonymized map shows pins from
   `/api/v1/map-pins`, RUT + passcode lookup hits `/api/v1/lookup` and
   renders the full record (4 sections + per-patient Leaflet map).
 
-## Midnight anchor
+## Cardano anchor
 
-The [`midnight/`](midnight/) workspace contains a Compact contract with a
-single `anchor(key, value)` circuit and a batcher that posts to it. The
-backend's `MidnightAdapter` ([backend/src/adapters/midnight.ts](backend/src/adapters/midnight.ts))
-hashes the patient's RUT into the key and submits the iOS-computed patient
-hash as the value, so on chain you end up with:
+The [`cardano/`](cardano/) workspace runs a local Cardano devnet via
+EffectStream - yaci-devkit + Dolos + a sync node, no smart contract. The
+backend's `CardanoAdapter` ([backend/src/adapters/cardano.ts](backend/src/adapters/cardano.ts))
+anchors each hash in **Cardano transaction metadata** (label `8327`) with
+Lucid, submitting through the Yaci admin API:
 
 ```
-anchors: Map<SHA-256(rut) → SHA-256(canonical patient JSON)>
+metadata 8327 = { t, k, v }
+  t = "ipp" (record) | "ipp-study" (Merkle root)
+  k = SHA-256(rut)   | SHA-256("study:"+id)
+  v = SHA-256(canonical patient JSON) | study Merkle root
 ```
 
-See [midnight/README.md](midnight/README.md) for the orchestrator + compile
-steps. `CHAIN=midnight` in `backend/.env` flips the backend over to it; the
-default `local` adapter remains for development without the full Midnight
-stack.
+An EffectStream `CardanoTransfer` primitive syncs that metadata from chain into
+an `ipp_anchors` table, which the adapter reads back. `CHAIN=cardano` in
+`backend/.env` - with the devnet running (`cd cardano && bun run dev`) - flips
+the backend over to it; the default `local` adapter remains for development
+without the devnet.
 
-## Verified end-to-end on Midnight
+## Verified end-to-end on Cardano
 
-A real anchor went through the full pipeline:
+A real anchor went through the full pipeline on the local devnet:
 
 | Layer | Result |
 |---|---|
-| iOS-style signed POST → IPP backend | 201 in 18.5s |
-| Backend → batcher (`POST /send-input`) | accepted |
-| Batcher → `anchor(key, value)` on Midnight devnet | confirmed block 149 |
-| Neon `anchored_hashes` | row written with `chain_tx_id=3c8568f5…` and `chain_name=midnight` |
+| `CardanoAdapter.submit` → Lucid builds tx + metadata | tx submitted via the Yaci admin API |
+| Yaci devnet | tx confirmed |
+| Dolos → `CardanoTransfer` primitive → STM | row written to `ipp_anchors` |
+| `CardanoAdapter.read` / `GET /api/v1/onchain/:key` | returns the on-chain value (matches submitted hash) |
 
-See [midnight/README.md](midnight/README.md) for the run steps and the two
-upstream-template bugs that needed fixing on the way.
+See [cardano/README.md](cardano/README.md) for the run steps (`cd cardano && bun run dev`).
 
 ## On-chain verification
 
-`GET /api/v1/verify/:rut` closes the anchor loop: it reads
-`anchors.lookup(SHA-256(rut))` back from the Midnight indexer (via a small
-read-only service started alongside the batcher — see
-[midnight/README.md](midnight/README.md)) and reports two things:
+`GET /api/v1/verify/:rut` closes the anchor loop: it reads the anchor for
+`SHA-256(rut)` back from the `ipp_anchors` table (synced from Cardano by the
+EffectStream `CardanoTransfer` primitive) and reports two things:
 
-- **chainMatch** — the chain still holds the exact hash we submitted when
+- **chainMatch** - the chain still holds the exact hash we submitted when
   anchoring (chain ↔ `anchored_hashes`).
-- **recordMatch** — the patient record *as it stands now* still hashes to the
+- **recordMatch** - the patient record *as it stands now* still hashes to the
   on-chain value (chain ↔ current record). If someone edits the stored record
   after it was anchored, this flips to `false`.
 
@@ -215,20 +218,20 @@ attribution comes from the authenticated identity, not a client field.
 
 The iOS (CryptoKit) and web (`@noble/ed25519`) clients derive the **same** key
 from the same account seed (standard RFC 8032 ed25519), so a doctor has one
-identity across both. Public reads — `/health`, `GET /schema`, `/map-pins`,
-`/leaderboard`, `/lookup`, `/verify` — stay open.
+identity across both. Public reads - `/health`, `GET /schema`, `/map-pins`,
+`/leaderboard`, `/lookup`, `/verify` - stay open.
 
 ## Roadmap
 
-- **Trustless client-side verification** — have the web client read the
+- **Trustless client-side verification** - have the web client read the
   indexer directly (rather than through the backend) so verification needs no
   trusted server at all.
-- **Real signup** — replace the fixed demo-account seeds with per-device
+- **Real signup** - replace the fixed demo-account seeds with per-device
   generated keys stored in the iOS Keychain.
 
 ## What's intentionally not done
 
 - **Demo accounts ship fixed seeds.** The ten `userNN` accounts derive their
-  signing keys from committed seeds — fine for a demo, but a real deployment
+  signing keys from committed seeds - fine for a demo, but a real deployment
   needs per-user generated keys (see Roadmap).
 - **No app icon / launch screen art.**

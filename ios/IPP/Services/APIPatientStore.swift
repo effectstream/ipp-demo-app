@@ -32,6 +32,39 @@ final class APIPatientStore: PatientStore {
         return res.entries
     }
 
+    /// Per-field local/country/world aggregates for the discreet form
+    /// comparison. Doctor-scope; best-effort (nil for viewers or on error).
+    func fetchFieldStats(lat: Double?, lng: Double?, radiusKm: Double = 10) async -> FieldStatsBundle? {
+        guard signerProvider() != nil else { return nil }
+        var comps = URLComponents(
+            url: baseURL.appendingPathComponent("api/v1/field-stats"),
+            resolvingAgainstBaseURL: false
+        )
+        var items = [URLQueryItem(name: "radiusKm", value: String(radiusKm))]
+        if let lat, let lng {
+            items.append(URLQueryItem(name: "lat", value: String(lat)))
+            items.append(URLQueryItem(name: "lng", value: String(lng)))
+        }
+        comps?.queryItems = items
+        guard let url = comps?.url else { return nil }
+        var req = URLRequest(url: url)
+        req.httpMethod = "GET"
+        addAuth(&req)  // signs the path only (query excluded), matching the backend
+        return try? await send(req)
+    }
+
+    /// Best-effort log of a search action for ranking points. No-op for viewers
+    /// (no signer → the backend would 401 anyway). Failures are ignored.
+    func logSearchEvent() async {
+        guard signerProvider() != nil else { return }
+        var req = URLRequest(url: baseURL.appendingPathComponent("api/v1/events"))
+        req.httpMethod = "POST"
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        req.httpBody = try? encoder.encode(["type": "search"])
+        addAuth(&req)
+        _ = try? await URLSession.shared.data(for: req)
+    }
+
     func list() async throws -> [Patient] {
         let res: ListResponse = try await get("api/v1/patients")
         return res.patients.map { $0.toPatient() }
@@ -169,6 +202,9 @@ struct LeaderboardEntry: Decodable, Identifiable, Hashable {
     let doctor: String
     let total: Int
     let last30: Int
+    let fields: Int
+    let searches: Int
+    let points: Int
 
     var id: String { doctor }
 }

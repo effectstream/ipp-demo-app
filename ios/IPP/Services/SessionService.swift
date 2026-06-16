@@ -2,9 +2,9 @@ import Foundation
 import SwiftUI
 
 // Tracks the current session. Three states:
-//   .none        — not authenticated, must hit the login screen
-//   .viewer      — anonymous "visitante" mode (read-only, can't submit)
-//   .loggedIn    — full doctor session, can submit and search
+//   .none        - not authenticated, must hit the login screen
+//   .viewer      - anonymous "visitante" mode (read-only, can't submit)
+//   .loggedIn    - full doctor session, can submit and search
 //
 // Persisted to UserDefaults so the user doesn't have to log in every time.
 @MainActor

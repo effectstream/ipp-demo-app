@@ -30,6 +30,8 @@
     </array>
     <key>BackendURL</key>
     <string>http://localhost:3334</string>
+    <key>WebURL</key>
+    <string>http://localhost:5174</string>
     <key>NSAppTransportSecurity</key>
     <dict>
         <key>NSAllowsLocalNetworking</key>

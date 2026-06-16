@@ -9,7 +9,7 @@ struct LoginView: View {
     var body: some View {
         ZStack {
             LinearGradient(
-                colors: [Color(.systemBackground), Color.indigo.opacity(0.08)],
+                colors: [Color.ippScreen, Color.ippTint],
                 startPoint: .top,
                 endPoint: .bottom
             )
@@ -18,19 +18,23 @@ struct LoginView: View {
             VStack(spacing: 20) {
                 Spacer()
 
-                VStack(spacing: 28) {
-                    VStack(spacing: 6) {
-                        Text("IPP")
-                            .font(.system(size: 42, weight: .bold))
-                            .kerning(-0.5)
-                        Text("Pacientes — registro y planificación")
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
+                VStack(spacing: 26) {
+                    VStack(spacing: 12) {
+                        IPPMark(size: 60, shadow: true)
+                        VStack(spacing: 5) {
+                            Text("IPP")
+                                .font(.system(size: 32, weight: .bold))
+                                .kerning(-0.5)
+                                .foregroundStyle(Color.ippInk)
+                            Text("Pacientes - registro y planificación")
+                                .font(.subheadline)
+                                .foregroundStyle(Color.ippBody)
+                        }
                     }
 
                     VStack(spacing: 14) {
                         VStack(alignment: .leading, spacing: 4) {
-                            Text("Usuario").font(.caption).foregroundStyle(.secondary)
+                            Text("Usuario").font(.caption).foregroundStyle(Color.ippBody)
                             TextField("user01", text: $username)
                                 .textFieldStyle(.roundedBorder)
                                 .autocorrectionDisabled(true)
@@ -38,7 +42,7 @@ struct LoginView: View {
                                 .submitLabel(.next)
                         }
                         VStack(alignment: .leading, spacing: 4) {
-                            Text("Contraseña").font(.caption).foregroundStyle(.secondary)
+                            Text("Contraseña").font(.caption).foregroundStyle(Color.ippBody)
                             SecureField("pass01", text: $password)
                                 .textFieldStyle(.roundedBorder)
                                 .submitLabel(.go)
@@ -48,10 +52,11 @@ struct LoginView: View {
                             Text("Ingresar")
                                 .font(.headline)
                                 .frame(maxWidth: .infinity)
-                                .frame(height: 46)
-                                .background(Color.accentColor)
+                                .frame(height: 48)
+                                .background(Color.ippTeal)
                                 .foregroundStyle(.white)
-                                .clipShape(RoundedRectangle(cornerRadius: 10))
+                                .clipShape(RoundedRectangle(cornerRadius: 13))
+                                .shadow(color: Color.ippTeal.opacity(0.5), radius: 8, y: 4)
                         }
                         if let error {
                             Text(error)
@@ -64,34 +69,39 @@ struct LoginView: View {
                         CardanoMark()
                         Text("Tu usuario y contraseña crearán una cuenta Cardano")
                             .font(.caption2)
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(Color.ippMuted)
                     }
 
-                    Divider()
+                    Divider().overlay(Color.ippBorder)
 
                     Button {
                         env.session.enterAsViewer()
                     } label: {
                         Text("Entrar como visitante")
                             .font(.callout.weight(.medium))
+                            .foregroundStyle(Color.ippInk)
                             .frame(maxWidth: .infinity)
-                            .frame(height: 40)
+                            .frame(height: 44)
                             .overlay(
-                                RoundedRectangle(cornerRadius: 10)
-                                    .stroke(Color.secondary.opacity(0.35), lineWidth: 1)
+                                RoundedRectangle(cornerRadius: 13)
+                                    .stroke(Color.ippBorder, lineWidth: 1.5)
                             )
                     }
                     .buttonStyle(.plain)
 
                     Text("Cuentas de demo: user01…user10 con contraseñas pass01…pass10.")
                         .font(.caption2)
-                        .foregroundStyle(.tertiary)
+                        .foregroundStyle(Color.ippMuted)
                         .multilineTextAlignment(.center)
                 }
-                .padding(24)
-                .background(.regularMaterial)
+                .padding(26)
+                .background(Color.white)
                 .clipShape(RoundedRectangle(cornerRadius: 18))
-                .shadow(color: .black.opacity(0.06), radius: 16, x: 0, y: 6)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 18)
+                        .stroke(Color.ippBorder, lineWidth: 1)
+                )
+                .shadow(color: Color.ippTealDeep.opacity(0.08), radius: 20, x: 0, y: 8)
                 .padding(.horizontal, 24)
 
                 Spacer()
@@ -107,16 +117,16 @@ struct LoginView: View {
     }
 }
 
-/// Tiny Cardano-styled disc with the ada glyph.
+/// Tiny Cardano-styled disc with the ada glyph — tinted to the teal system.
 struct CardanoMark: View {
     var size: CGFloat = 16
 
     var body: some View {
         ZStack {
-            Circle().fill(Color(red: 0.0, green: 0.2, blue: 0.68))
+            Circle().fill(Color.ippTint)
             Text("₳")
-                .font(.system(size: size * 0.7, weight: .bold))
-                .foregroundStyle(.white)
+                .font(.system(size: size * 0.62, weight: .bold))
+                .foregroundStyle(Color.ippTeal)
                 .offset(y: -size * 0.02)
         }
         .frame(width: size, height: size)

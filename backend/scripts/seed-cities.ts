@@ -1,6 +1,6 @@
 // Seeds patients aligned with the current clinical form schema (v11+).
 // Distributes 30 fake patients across five Chilean coastal cities so the
-// map and leaderboard have realistic data. Deterministic — re-running
+// map and leaderboard have realistic data. Deterministic - re-running
 // upserts the same UUIDs in place.
 //
 // Run with:

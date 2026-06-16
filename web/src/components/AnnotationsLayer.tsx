@@ -103,9 +103,9 @@ function renderAnnotation(a: Annotation): L.Layer {
     });
   }
   return L.polygon(a.points, {
-    color: "#7c3aed",
+    color: "#0E726E",
     weight: 2,
-    fillColor: "#a78bfa",
+    fillColor: "#6FBFB8",
     fillOpacity: 0.25,
   });
 }
@@ -125,9 +125,9 @@ function applyHighlight(layer: L.Layer, a: Annotation, highlighted: boolean) {
     layer.setIcon(makeNoteIcon(highlighted));
   } else if (a.type === "area" && layer instanceof L.Polygon) {
     if (highlighted) {
-      layer.setStyle({ weight: 4, fillOpacity: 0.5, color: "#5b21b6" });
+      layer.setStyle({ weight: 4, fillOpacity: 0.5, color: "#0A5450" });
     } else {
-      layer.setStyle({ weight: 2, fillOpacity: 0.25, color: "#7c3aed" });
+      layer.setStyle({ weight: 2, fillOpacity: 0.25, color: "#0E726E" });
     }
   }
 }

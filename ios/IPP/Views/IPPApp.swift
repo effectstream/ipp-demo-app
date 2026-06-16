@@ -10,6 +10,8 @@ struct IPPApp: App {
                 .environmentObject(env)
                 .environmentObject(env.schemaService)
                 .environmentObject(env.session)
+                .tint(.ippTeal)
+                .preferredColorScheme(.light)
                 .task {
                     await env.schemaService.refresh()
                 }
@@ -17,7 +19,7 @@ struct IPPApp: App {
     }
 }
 
-// Re-renders whenever the SessionService publishes — so logging in, entering
+// Re-renders whenever the SessionService publishes - so logging in, entering
 // as viewer, and tapping Salir all flip between LoginView and HomeView
 // without any extra plumbing.
 private struct SessionGate: View {
