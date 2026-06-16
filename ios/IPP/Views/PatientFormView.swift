@@ -270,6 +270,13 @@ struct PatientFormView: View {
     }
 
     private func save() async {
+        // The backend requires a valid RUT (the patient's identity + lookup
+        // key). Validate locally so the doctor gets a clear, immediate message
+        // naming the problem instead of a round-trip 400.
+        if let problem = validationProblem() {
+            saveError = problem
+            return
+        }
         saving = true
         defer { saving = false }
         if let updated = await env.saveAndAnchor(patient) {
@@ -283,5 +290,21 @@ struct PatientFormView: View {
         } else if let err = env.lastError {
             saveError = err
         }
+    }
+
+    // Mirrors the backend RUT rule (RUT_PATTERN: 5-15 chars of digits, K, dots
+    // and hyphen). Returns a user-facing message naming the problem, or nil
+    // when the record is OK to submit.
+    private func validationProblem() -> String? {
+        let rut = patient.rut.trimmingCharacters(in: .whitespacesAndNewlines)
+        if rut.isEmpty {
+            return "Ingresa el RUT del paciente para guardar."
+        }
+        let allowed = CharacterSet(charactersIn: "0123456789kK.-")
+        guard (5...15).contains(rut.count),
+              rut.unicodeScalars.allSatisfy(allowed.contains) else {
+            return "El RUT no es válido. Usa números, puntos, guion y dígito verificador (ej: 12.345.678-9)."
+        }
+        return nil
     }
 }

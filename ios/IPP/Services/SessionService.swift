@@ -1,5 +1,6 @@
 import Foundation
 import SwiftUI
+import os
 
 // Tracks the current session. Three states:
 //   .none        - not authenticated, must hit the login screen
@@ -15,13 +16,27 @@ final class SessionService: ObservableObject {
         case loggedIn(Account)
     }
 
-    @Published private(set) var state: State
+    @Published private(set) var state: State {
+        didSet { syncAuthSnapshot() }
+    }
+
+    // Thread-safe mirror of the auth bits the (non-main-actor) APIPatientStore
+    // needs to sign requests. Written on the main actor whenever `state`
+    // changes; read from background executors via the nonisolated accessors
+    // below - so the networking layer never hops to the main actor (and never
+    // traps via MainActor.assumeIsolated) while building a request off-main.
+    private struct AuthSnapshot: Sendable {
+        var username: String?
+        var secretKey: String?
+    }
+    private let authSnapshot = OSAllocatedUnfairLock(initialState: AuthSnapshot())
 
     private static let key = "ipp.session.state.v1"
     private static let viewerToken = "__viewer__"
 
     init() {
         self.state = Self.load()
+        syncAuthSnapshot()
     }
 
     var isAuthenticated: Bool {
@@ -67,6 +82,32 @@ final class SessionService: ObservableObject {
     func logout() {
         state = .none
         UserDefaults.standard.removeObject(forKey: Self.key)
+    }
+
+    // MARK: - Thread-safe auth snapshot (read off the main actor)
+
+    private func syncAuthSnapshot() {
+        let snap: AuthSnapshot
+        if case .loggedIn(let a) = state {
+            snap = AuthSnapshot(username: a.username, secretKey: a.secretKey)
+        } else {
+            snap = AuthSnapshot(username: nil, secretKey: nil)
+        }
+        authSnapshot.withLock { $0 = snap }
+    }
+
+    // Current doctor name for request attribution (nil for viewer/none).
+    nonisolated func currentDoctorName() -> String? {
+        authSnapshot.withLock { $0.username }
+    }
+
+    // Current doctor request signer (nil for viewer/none). Safe to call from
+    // any thread - the API store invokes it while building requests off-main.
+    nonisolated func currentSigner() -> DoctorSigner? {
+        let snap = authSnapshot.withLock { $0 }
+        guard let username = snap.username, let secretKey = snap.secretKey,
+              let wallet = Wallet(seedHex: secretKey) else { return nil }
+        return DoctorSigner(wallet: wallet, username: username)
     }
 
     private static func load() -> State {

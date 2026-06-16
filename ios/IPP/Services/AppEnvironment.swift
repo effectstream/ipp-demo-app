@@ -29,18 +29,16 @@ final class AppEnvironment: ObservableObject {
         self.schemaService = schemaService
         self.webURL = webURL
         // Doctor name on every save comes from the session - the username
-        // becomes the leaderboard attribution.
+        // becomes the leaderboard attribution. Read via a nonisolated,
+        // thread-safe snapshot so the API store can call it off the main actor.
         apiStore.doctorNameProvider = { [weak session] in
-            MainActor.assumeIsolated { session?.username }
+            session?.currentDoctorName()
         }
         // Sign doctor-scope requests with the logged-in account's ed25519 key.
+        // currentSigner() is nonisolated + thread-safe, so the API store can
+        // call it while building a request on a background executor.
         apiStore.signerProvider = { [weak session] in
-            MainActor.assumeIsolated {
-                guard let session, let wallet = session.wallet, let username = session.username else {
-                    return nil
-                }
-                return DoctorSigner(wallet: wallet, username: username)
-            }
+            session?.currentSigner()
         }
     }
 
