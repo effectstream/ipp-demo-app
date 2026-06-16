@@ -1,6 +1,6 @@
 // Per-browser map annotations: notes (point markers with text) and areas
 // (polygons with a name). Stored in localStorage so they survive reloads,
-// and never sent to the backend — this is a planning aid for the local
+// and never sent to the backend - this is a planning aid for the local
 // user, not patient data.
 
 export interface NoteAnnotation {
@@ -47,7 +47,7 @@ export function saveAnnotations(items: Annotation[]): void {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
   } catch {
-    // Quota exceeded or storage disabled — silently ignore.
+    // Quota exceeded or storage disabled - silently ignore.
   }
 }
 

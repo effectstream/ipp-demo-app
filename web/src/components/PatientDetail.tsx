@@ -15,7 +15,7 @@ import type {
 } from "../types";
 
 // Vite resolves marker images at build time, but Leaflet's prototype still
-// holds a `_getIconUrl` that prepends its own image path — deleting it first
+// holds a `_getIconUrl` that prepends its own image path - deleting it first
 // makes mergeOptions actually win.
 delete (L.Icon.Default.prototype as { _getIconUrl?: unknown })._getIconUrl;
 L.Icon.Default.mergeOptions({
@@ -38,7 +38,7 @@ export function PatientDetail({ patient }: Props) {
     let cancelled = false;
     fetchSchema()
       .then((s) => { if (!cancelled) setSchema(s); })
-      .catch(() => { /* fall through — fields just won't render */ });
+      .catch(() => { /* fall through - fields just won't render */ });
     return () => { cancelled = true; };
   }, []);
 
@@ -189,7 +189,7 @@ function asAddress(v: ResponseValue | undefined): AddressValue | null {
 type VerifyTone = "ok" | "warn" | "bad" | "neutral";
 const TONE_COLOR: Record<VerifyTone, string> = {
   ok: "#1a7f37",
-  warn: "#9a6700",
+  warn: "#b0842f",
   bad: "#cf222e",
   neutral: "#57606a",
 };
@@ -202,13 +202,13 @@ function interpretVerify(r: VerifyResult): { tone: VerifyTone; title: string; de
     return {
       tone: "neutral",
       title: "Cadena local (desarrollo)",
-      detail: "El backend no está conectado a Midnight, así que no hay anclaje real que verificar.",
+      detail: "El backend no está conectado a Cardano, así que no hay anclaje real que verificar.",
     };
   }
   if (r.found && r.recordMatch) {
     return {
       tone: "ok",
-      title: "✓ Verificado en Midnight",
+      title: "✓ Verificado en Cardano",
       detail: "El hash del registro actual coincide con el valor anclado en la cadena.",
     };
   }
@@ -236,7 +236,7 @@ function interpretVerify(r: VerifyResult): { tone: VerifyTone; title: string; de
   return {
     tone: "neutral",
     title: "Sin anclaje en la cadena",
-    detail: "Este registro aún no ha sido anclado en Midnight.",
+    detail: "Este registro aún no ha sido anclado en Cardano.",
   };
 }
 
@@ -279,7 +279,7 @@ function VerifyPanel({
           <HashLine label="Clave (SHA-256 del RUT)" value={result.keyHex} />
           <HashLine label="En cadena" value={result.onChainHash} />
           <HashLine label="Registro actual" value={result.localHash} />
-          {result.chainTxId && <HashLine label="Tx Midnight" value={result.chainTxId} />}
+          {result.chainTxId && <HashLine label="Tx Cardano" value={result.chainTxId} />}
           {result.anchoredAt && (
             <div className="pair">
               <span>Anclado</span>
@@ -296,8 +296,8 @@ function HashLine({ label, value }: { label: string; value: string | null }) {
   return (
     <div className="pair">
       <span>{label}</span>
-      <span style={{ fontFamily: "monospace", fontSize: 12, wordBreak: "break-all" }}>
-        {value ? `${value.slice(0, 16)}…${value.slice(-8)}` : "—"}
+      <span style={{ fontFamily: "var(--mono)", fontSize: 12, wordBreak: "break-all" }}>
+        {value ? `${value.slice(0, 16)}…${value.slice(-8)}` : "-"}
       </span>
     </div>
   );

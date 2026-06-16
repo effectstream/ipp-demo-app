@@ -1,7 +1,7 @@
 import { mockCardanoAddress } from "./session";
 
 // Demo accounts. Each user's secretKey was generated once (32 bytes from
-// node's crypto.randomBytes) and is committed verbatim — the Cardano-style
+// node's crypto.randomBytes) and is committed verbatim - the Cardano-style
 // wallet address is deterministically derived from it. Real Cardano
 // keypair derivation (CIP-1852 + bech32) will replace this when wallet
 // support lands; the rest of the app already routes through walletForAccount,
@@ -30,7 +30,7 @@ export function findAccount(username: string, password: string): DemoAccount | n
   return ACCOUNTS.find((a) => a.username === u && a.password === password) ?? null;
 }
 
-// Look up an account by username alone — used to recover the signing key for
+// Look up an account by username alone - used to recover the signing key for
 // the logged-in session (the session only stores the username).
 export function accountByUsername(username: string): DemoAccount | null {
   const u = username.trim();

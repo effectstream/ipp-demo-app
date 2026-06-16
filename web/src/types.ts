@@ -4,6 +4,24 @@ export interface MapPin {
   id: string;
   latitude: number;
   longitude: number;
+  anchorKey: string;
+}
+
+// On-chain anchor lookup result (GET /api/v1/onchain/:key).
+export interface OnChainAnchor {
+  chain: string;
+  found: boolean;
+  valueHex: string | null;
+}
+
+// Anonymized pin + non-identifying medical stats (GET /api/v1/map-stats),
+// used by the map's population-study filters. Mirrors backend MapStatPin.
+export interface MapStatPin {
+  id: string;
+  latitude: number;
+  longitude: number;
+  anchorKey: string;
+  stats: Record<string, ResponseValue>;
 }
 
 export interface PatientEnvelope {
@@ -40,6 +58,9 @@ export interface Question {
   allowCustom?: boolean;
   placeholder?: string;
   hidden?: boolean;
+  // Whether this question is offered as a filter on the population map.
+  // Unset → a type-based default decides (see mapStats.isFilterable).
+  filterable?: boolean;
   dependsOn?: string;
   dependsOnValue?: unknown;
   labelEn?: string;
@@ -83,7 +104,16 @@ export interface PatientData {
   updatedAt?: string;
 }
 
-// Result of GET /api/v1/verify/:rut — on-chain anchor verification.
+// One feedback row (GET /api/v1/feedback). `sender` is null when anonymous.
+export interface FeedbackEntry {
+  id: number;
+  sender: string | null;
+  anonymous: boolean;
+  message: string;
+  createdAt: string;
+}
+
+// Result of GET /api/v1/verify/:rut - on-chain anchor verification.
 export interface VerifyResult {
   rut: string;
   keyHex: string;

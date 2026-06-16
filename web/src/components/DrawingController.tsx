@@ -72,13 +72,13 @@ export function DrawingController({
     if (areaPoints.length === 1) {
       L.circleMarker(areaPoints[0]!, {
         radius: 4,
-        color: "#7c3aed",
-        fillColor: "#7c3aed",
+        color: "#0E726E",
+        fillColor: "#0E726E",
         fillOpacity: 1,
       }).addTo(group);
     } else {
       L.polyline(areaPoints, {
-        color: "#7c3aed",
+        color: "#0E726E",
         weight: 2,
         dashArray: "4 4",
       }).addTo(group);
@@ -86,8 +86,8 @@ export function DrawingController({
       for (const p of areaPoints) {
         L.circleMarker(p, {
           radius: 3,
-          color: "#7c3aed",
-          fillColor: "#7c3aed",
+          color: "#0E726E",
+          fillColor: "#0E726E",
           fillOpacity: 1,
         }).addTo(group);
       }

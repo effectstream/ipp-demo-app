@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { fetchSchema, putSchema } from "../api";
+import { isFilterable } from "../mapStats";
 import type { FormSchema, Question, QuestionType } from "../types";
 
 const QUESTION_TYPES: QuestionType[] = [
@@ -262,6 +263,14 @@ function QuestionRow({
           />
           <span>Oculta</span>
         </label>
+        <label className="checkbox" title="Ofrecer como filtro en el mapa de población">
+          <input
+            type="checkbox"
+            checked={isFilterable(question)}
+            onChange={(e) => onChange({ filterable: e.target.checked })}
+          />
+          <span>Filtrable</span>
+        </label>
         <button type="button" className="tool danger" onClick={onDelete} title="Eliminar">×</button>
       </div>
 
@@ -302,7 +311,7 @@ function QuestionRow({
               value={question.dependsOn ?? ""}
               onChange={(e) => onChange({ dependsOn: e.target.value || undefined })}
             >
-              <option value="">— ninguna —</option>
+              <option value="">- ninguna -</option>
               {allQuestions
                 .filter((q) => q.id !== question.id && q.tab === question.tab)
                 .map((q) => (

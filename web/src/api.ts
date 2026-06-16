@@ -1,4 +1,4 @@
-import type { FormSchema, MapPin, PatientEnvelope, VerifyResult } from "./types";
+import type { FeedbackEntry, FormSchema, MapPin, MapStatPin, OnChainAnchor, PatientEnvelope, VerifyResult } from "./types";
 import { accountByUsername } from "./accounts";
 import { loadSession } from "./session";
 import { signedHeaders } from "./signing";
@@ -6,7 +6,7 @@ import { signedHeaders } from "./signing";
 const BASE_URL = import.meta.env.VITE_BACKEND_URL ?? "http://localhost:3334";
 
 // Build signed-request auth headers for the logged-in doctor (empty if not
-// logged in — the backend will then 401 the gated endpoint).
+// logged in - the backend will then 401 the gated endpoint).
 function authHeaders(method: string, url: string, body: string): Record<string, string> {
   const session = loadSession();
   if (!session) return {};
@@ -20,6 +20,48 @@ export async function fetchMapPins(): Promise<MapPin[]> {
   if (!res.ok) throw new Error(`map-pins failed: ${res.status}`);
   const body = (await res.json()) as { pins: MapPin[] };
   return body.pins;
+}
+
+// Anonymized pins + non-identifying medical stats for the map filters. This is
+// a doctor-scope endpoint, so the request is signed with the account key.
+export async function fetchMapStats(): Promise<MapStatPin[]> {
+  const url = `${BASE_URL}/api/v1/map-stats`;
+  const res = await fetch(url, { headers: { ...authHeaders("GET", url, "") } });
+  if (!res.ok) throw new Error(`map-stats failed: ${res.status}`);
+  const body = (await res.json()) as { pins: MapStatPin[] };
+  return body.pins;
+}
+
+// Feedback is a doctor-scope endpoint (sender attributed from the signed
+// identity), so both calls are signed with the account key.
+export async function fetchFeedback(): Promise<FeedbackEntry[]> {
+  const url = `${BASE_URL}/api/v1/feedback`;
+  const res = await fetch(url, { headers: { ...authHeaders("GET", url, "") } });
+  if (!res.ok) throw new Error(`feedback GET failed: ${res.status}`);
+  const body = (await res.json()) as { feedback: FeedbackEntry[] };
+  return body.feedback;
+}
+
+export async function submitFeedback(message: string, anonymous: boolean): Promise<FeedbackEntry> {
+  const url = `${BASE_URL}/api/v1/feedback`;
+  const body = JSON.stringify({ message, anonymous });
+  const res = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...authHeaders("POST", url, body) },
+    body,
+  });
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`feedback POST failed: ${res.status} ${text}`);
+  }
+  return (await res.json()) as FeedbackEntry;
+}
+
+// On-chain anchor for a pin's key (SHA-256(rut)) - public read for the map popup.
+export async function fetchOnChain(key: string): Promise<OnChainAnchor> {
+  const res = await fetch(`${BASE_URL}/api/v1/onchain/${encodeURIComponent(key)}`);
+  if (!res.ok) throw new Error(`onchain failed: ${res.status}`);
+  return (await res.json()) as OnChainAnchor;
 }
 
 export async function fetchSchema(): Promise<FormSchema> {

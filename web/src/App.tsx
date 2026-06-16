@@ -3,13 +3,15 @@ import { MapView } from "./components/MapView";
 import { LookupForm } from "./components/LookupForm";
 import { PatientDetail } from "./components/PatientDetail";
 import { SchemaEditor } from "./components/SchemaEditor";
+import { Feedback } from "./components/Feedback";
 import { Login } from "./components/Login";
 import { CardanoLogo } from "./components/CardanoLogo";
+import { IppMark } from "./components/IppMark";
 import { clearSession, loadSession, type Session } from "./session";
 import { shortAddress } from "./wallet";
 import type { PatientEnvelope } from "./types";
 
-type Section = "pacientes" | "configurar";
+type Section = "pacientes" | "configurar" | "feedback";
 
 export function App() {
   const [session, setSession] = useState<Session | null>(() => loadSession());
@@ -29,11 +31,14 @@ export function App() {
   return (
     <main className="app">
       <header className="app-header">
-        <div>
-          <h1>IPP — Pacientes</h1>
-          <p className="subtitle">
-            Mapa anonimizado, búsqueda por RUT + código, y configuración del formulario.
-          </p>
+        <div className="brand">
+          <IppMark size={38} />
+          <div>
+            <h1>IPP <span className="brand-sub">Pacientes</span></h1>
+            <p className="subtitle">
+              Mapa anonimizado, búsqueda por RUT + código, y configuración del formulario.
+            </p>
+          </div>
         </div>
         <div className="session-bar">
           <CardanoLogo size={14} />
@@ -62,9 +67,16 @@ export function App() {
         >
           Configurar
         </button>
+        <button
+          type="button"
+          className={`nav-tab ${section === "feedback" ? "active" : ""}`}
+          onClick={() => setSection("feedback")}
+        >
+          Feedback
+        </button>
       </nav>
 
-      {section === "pacientes" ? (
+      {section === "pacientes" && (
         <div className="grid">
           <MapView />
           <div>
@@ -76,9 +88,9 @@ export function App() {
             )}
           </div>
         </div>
-      ) : (
-        <SchemaEditor />
       )}
+      {section === "configurar" && <SchemaEditor />}
+      {section === "feedback" && <Feedback />}
     </main>
   );
 }

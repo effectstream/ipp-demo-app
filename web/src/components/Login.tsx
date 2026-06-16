@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { CardanoLogo } from "./CardanoLogo";
+import { IppMark } from "./IppMark";
 import { saveSession, type Session } from "../session";
 import { findAccount, walletForAccount } from "../accounts";
 
@@ -31,8 +32,11 @@ export function Login({ onLogin }: Props) {
   return (
     <main className="login-page">
       <div className="login-card">
-        <h1>IPP</h1>
-        <p className="login-subtitle">Pacientes — registro y planificación</p>
+        <div className="login-hero">
+          <IppMark size={60} shadow />
+          <h1>IPP</h1>
+          <p className="login-subtitle">Pacientes - registro y planificación</p>
+        </div>
 
         <form onSubmit={submit}>
           <div className="field">
@@ -43,6 +47,9 @@ export function Login({ onLogin }: Props) {
               value={username}
               onChange={(e) => setUsername(e.target.value)}
               autoComplete="username"
+              autoCapitalize="none"
+              autoCorrect="off"
+              spellCheck={false}
               autoFocus
               required
             />

@@ -4,7 +4,7 @@
 //
 // The key is derived from the same 32-byte account seed as iOS, so both clients
 // present the identical public key for a given account (standard RFC 8032
-// ed25519 — verified against CryptoKit).
+// ed25519 - verified against CryptoKit).
 
 import * as ed from "@noble/ed25519";
 import { sha512 } from "@noble/hashes/sha512";
