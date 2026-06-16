@@ -4,6 +4,8 @@ import { LookupForm } from "./components/LookupForm";
 import { PatientDetail } from "./components/PatientDetail";
 import { SchemaEditor } from "./components/SchemaEditor";
 import { Feedback } from "./components/Feedback";
+import { Studies } from "./components/Studies";
+import { VerifyStudy } from "./components/VerifyStudy";
 import { Login } from "./components/Login";
 import { CardanoLogo } from "./components/CardanoLogo";
 import { IppMark } from "./components/IppMark";
@@ -11,9 +13,17 @@ import { clearSession, loadSession, type Session } from "./session";
 import { shortAddress } from "./wallet";
 import type { PatientEnvelope } from "./types";
 
-type Section = "pacientes" | "configurar" | "feedback";
+type Section = "pacientes" | "estudios" | "configurar" | "feedback";
 
 export function App() {
+  // Public, no-login route: anyone with a proof bundle / Verification ID can
+  // verify a dataset against Cardano. Reached via a full page load (the export
+  // stamp and Estudios links point at /verificar), so hook order stays stable.
+  const path = window.location.pathname.replace(/\/+$/, "");
+  if (path === "/verificar" || window.location.hash.includes("verificar")) {
+    return <VerifyStudy />;
+  }
+
   const [session, setSession] = useState<Session | null>(() => loadSession());
   const [patient, setPatient] = useState<PatientEnvelope | null>(null);
   const [section, setSection] = useState<Section>("pacientes");
@@ -62,6 +72,13 @@ export function App() {
         </button>
         <button
           type="button"
+          className={`nav-tab ${section === "estudios" ? "active" : ""}`}
+          onClick={() => setSection("estudios")}
+        >
+          Estudios
+        </button>
+        <button
+          type="button"
           className={`nav-tab ${section === "configurar" ? "active" : ""}`}
           onClick={() => setSection("configurar")}
         >
@@ -89,6 +106,7 @@ export function App() {
           </div>
         </div>
       )}
+      {section === "estudios" && <Studies />}
       {section === "configurar" && <SchemaEditor />}
       {section === "feedback" && <Feedback />}
     </main>

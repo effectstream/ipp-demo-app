@@ -1,9 +1,12 @@
-import type { FeedbackEntry, FormSchema, MapPin, MapStatPin, OnChainAnchor, PatientEnvelope, VerifyResult } from "./types";
+import type {
+  FeedbackEntry, FormSchema, MapPin, MapStatPin, OnChainAnchor, PatientEnvelope, VerifyResult,
+  StudyPublishResult, StudySummary, ProofBundle, StudyVerifyResult,
+} from "./types";
 import { accountByUsername } from "./accounts";
 import { loadSession } from "./session";
 import { signedHeaders } from "./signing";
 
-const BASE_URL = import.meta.env.VITE_BACKEND_URL ?? "http://localhost:3334";
+export const BASE_URL = import.meta.env.VITE_BACKEND_URL ?? "http://localhost:3334";
 
 // Build signed-request auth headers for the logged-in doctor (empty if not
 // logged in - the backend will then 401 the gated endpoint).
@@ -92,6 +95,51 @@ export async function verifyOnChain(rut: string): Promise<VerifyResult> {
     throw new Error(`verify failed: ${res.status} ${body}`);
   }
   return (await res.json()) as VerifyResult;
+}
+
+// Publish a cohort-scoped, export-bound study (doctor-scope). The CSV export
+// flow calls this with the filtered cohort's member ids + the export file hash.
+export async function publishStudy(input: {
+  memberIds: string[];
+  exportHash?: string;
+  title?: string;
+  filter?: { description?: string; json?: unknown };
+}): Promise<StudyPublishResult> {
+  const url = `${BASE_URL}/api/v1/studies`;
+  const body = JSON.stringify(input);
+  const res = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...authHeaders("POST", url, body) },
+    body,
+  });
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`publish study failed: ${res.status} ${text}`);
+  }
+  return (await res.json()) as StudyPublishResult;
+}
+
+// List recorded studies/exports (doctor-scope).
+export async function fetchStudies(): Promise<StudySummary[]> {
+  const url = `${BASE_URL}/api/v1/studies`;
+  const res = await fetch(url, { headers: { ...authHeaders("GET", url, "") } });
+  if (!res.ok) throw new Error(`studies GET failed: ${res.status}`);
+  const body = (await res.json()) as { studies: StudySummary[] };
+  return body.studies;
+}
+
+// The hash-only proof bundle for a study (public).
+export async function fetchStudyBundle(id: string): Promise<ProofBundle> {
+  const res = await fetch(`${BASE_URL}/api/v1/studies/${encodeURIComponent(id)}`);
+  if (!res.ok) throw new Error(`study bundle failed: ${res.status}`);
+  return (await res.json()) as ProofBundle;
+}
+
+// Doctor-side drift check: does the live dataset still match what was published?
+export async function verifyStudy(id: string): Promise<StudyVerifyResult> {
+  const res = await fetch(`${BASE_URL}/api/v1/verify-study/${encodeURIComponent(id)}`);
+  if (!res.ok) throw new Error(`verify-study failed: ${res.status}`);
+  return (await res.json()) as StudyVerifyResult;
 }
 
 export async function lookupPatient(
