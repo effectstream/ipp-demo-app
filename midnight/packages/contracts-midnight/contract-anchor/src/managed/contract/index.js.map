@@ -1,8 +1,0 @@
-{
-  "version": 3,
-  "file": "index.js",
-  "sourceRoot": "../../../",
-  "sources": ["src/anchor.compact", "compiler/standard-library.compact"],
-  "names": [],
-  "mappings": ";;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;EAwBA;;;;;;;;;;;;;MAKA,AAAA,MAIC;;;;;cAJc,KAAc;cAAE,OAAgB;;;;;;;;;;;;;;;;;;;;;;;;;yCAAhC,KAAc,+BAAE,OAAgB;;;;;;;;;wCAAhC,KAAc;wCAAE,OAAgB;;;OAI9C;;;;GANA;EAHD;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;IATA;;;;;;;;;;yEAAiD;IACjD;;;;;;;;;yEAAkC;UAS1B,IAAyB;UAC/B,KAAQ,sBAAc,IAAE;IAAxB;;;;;;;2HAAA,KAAQ;;yEAAA;;;;;;;GACT;EC3BD,AAAA,kBAAA;oEAAA;;;EDkBA,AAAA,qBAAwC;;0DAAxC,kBAAwC;;;;;;;;;;;;;;GAAA;EAExC,AAAA,aAEC,CAFkB,IAAa;;mCAC4C,IAAE;GAC7E;EAOD,AAAA,SAIC,4BAJc,KAAc,EAAE,OAAgB;UACvC,IAAyB;6DACb,IAAE;kEAAK;;;;;;;;;;;uIAAQ;;IACjC;;;;;;;;;;2HAAwB,KAAG;;;2HAAY,OAAK;;;wEAArC;;GACR;;;;;;;;;;;;;;;;;;;;IAlBD;;;;;uCAAA;;;;;;;;;;;;;;;;4GAAiD;;;;;;uCAAjD;;;;;;;;;;;;4GAAiD;;;;;;;;;;;;;;uCAAjD;;;;;;;;;;;;;;;4GAAiD;;;;;;;;;;;;;;uCAAjD;;;;;;;;;;;;;;;;;4GAAiD;;;;;;;;;KAAA;IACjD;qCAAA;;;;;;;;;;;0GAAkC;KAAA;;;;;;;;;;;;"
-}
