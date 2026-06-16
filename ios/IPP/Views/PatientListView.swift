@@ -36,6 +36,9 @@ struct PatientListView: View {
             .navigationTitle("Buscar Paciente")
             .navigationBarTitleDisplayMode(.inline)
             .searchable(text: $searchText, prompt: "Buscar por nombre o RUT")
+            .onSubmit(of: .search) {
+                Task { await env.recordSearch() }
+            }
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("Listo") { dismiss() }
@@ -59,16 +62,29 @@ struct PatientListView: View {
 private struct PatientRow: View {
     let patient: Patient
 
+    private var initials: String {
+        let s = patient.nombre.split(separator: " ").prefix(2)
+            .compactMap { $0.first }.map(String.init).joined()
+        return s.isEmpty ? "?" : s.uppercased()
+    }
+
     var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text(patient.nombre.isEmpty ? "Sin nombre" : patient.nombre)
-                .font(.headline)
-            HStack(spacing: 12) {
-                if !patient.rut.isEmpty {
-                    Text(patient.rut).font(.caption).foregroundStyle(.secondary)
-                }
-                if let edad = patient.edad {
-                    Text("\(edad) años").font(.caption).foregroundStyle(.secondary)
+        HStack(spacing: 12) {
+            ZStack {
+                Circle().fill(Color.ippTint).frame(width: 38, height: 38)
+                Text(initials).font(.caption.weight(.bold)).foregroundStyle(Color.ippTeal)
+            }
+            VStack(alignment: .leading, spacing: 3) {
+                Text(patient.nombre.isEmpty ? "Sin nombre" : patient.nombre)
+                    .font(.callout.weight(.semibold))
+                    .foregroundStyle(Color.ippInk)
+                HStack(spacing: 6) {
+                    if !patient.rut.isEmpty {
+                        Text(patient.rut).font(.caption.monospaced()).foregroundStyle(Color.ippMuted)
+                    }
+                    if let edad = patient.edad {
+                        Text("· \(edad) años").font(.caption).foregroundStyle(Color.ippMuted)
+                    }
                 }
             }
         }

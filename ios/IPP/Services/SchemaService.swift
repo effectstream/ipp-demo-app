@@ -4,7 +4,7 @@ import SwiftUI
 // Manages the form schema's lifecycle: bundled default on first launch,
 // disk cache for subsequent launches, network refresh on every launch.
 // The UI binds to `@Published var schema` and re-renders when a fresher
-// version arrives — but the cached value is always usable, so the form
+// version arrives - but the cached value is always usable, so the form
 // keeps working offline.
 @MainActor
 final class SchemaService: ObservableObject {

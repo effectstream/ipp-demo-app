@@ -48,7 +48,7 @@ struct Patient: Codable, Identifiable, Hashable {
     }
 }
 
-// Convenience accessors used by RootView and APIPatientStore — these
+// Convenience accessors used by RootView and APIPatientStore - these
 // happen to know which question ids encode identity / location, but
 // they're tolerant when the schema doesn't include them.
 extension Patient {

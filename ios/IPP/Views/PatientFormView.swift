@@ -20,11 +20,19 @@ struct PatientFormView: View {
     @State private var verifyResult: VerifyResult?
     @State private var verifyError: String?
 
+    @State private var fieldStats: FieldStatsBundle?
+
     private var schema: FormSchema { schemaService.schema }
     private var isViewer: Bool { session.isViewer }
 
     private var sortedTabs: [FormTab] {
         schema.tabs.sorted { $0.order < $1.order }
+    }
+
+    // Re-fetch field-stats whenever the patient's coordinates change (e.g. the
+    // doctor picks an address), so "local" compares against the right area.
+    private var coordsKey: String {
+        "\(patient.latitude ?? 0)|\(patient.longitude ?? 0)"
     }
 
     // "Dirty" if the current patient differs from the snapshot we took when
@@ -49,7 +57,7 @@ struct PatientFormView: View {
         }
         .navigationTitle(patient.nombre.isEmpty ? "Nuevo paciente" : patient.nombre)
         .navigationBarTitleDisplayMode(.inline)
-        // Block the swipe-down dismiss while there are unsaved edits — the
+        // Block the swipe-down dismiss while there are unsaved edits - the
         // user must hit Cancelar (or Guardar) so they see the discard
         // confirmation. iOS Mail's compose sheet does the same thing.
         .interactiveDismissDisabled(hasUnsavedChanges)
@@ -79,6 +87,9 @@ struct PatientFormView: View {
         }
         .onAppear {
             if originalSnapshot == nil { originalSnapshot = patient }
+        }
+        .task(id: coordsKey) {
+            fieldStats = await env.fetchFieldStats(lat: patient.latitude, lng: patient.longitude)
         }
         .confirmationDialog(
             "¿Descartar cambios?",
@@ -113,10 +124,10 @@ struct PatientFormView: View {
             VStack(spacing: 0) {
                 passcodeBanner(code: code)
                 verifyBanner()
-                DynamicFormView(tabId: tab.id, responses: $patient.responses)
+                DynamicFormView(tabId: tab.id, responses: $patient.responses, stats: fieldStats)
             }
         } else {
-            DynamicFormView(tabId: tab.id, responses: $patient.responses)
+            DynamicFormView(tabId: tab.id, responses: $patient.responses, stats: fieldStats)
         }
     }
 
@@ -199,7 +210,7 @@ struct PatientFormView: View {
     }
 
     // Verdict uses the device-recomputed hash (PatientHasher) as the
-    // authoritative "does this record match the chain" signal — the iOS
+    // authoritative "does this record match the chain" signal - the iOS
     // encoder is the one that produced the anchor in the first place.
     private func verifyVerdict(
         _ v: VerifyResult
@@ -209,12 +220,12 @@ struct PatientFormView: View {
         }
         if v.chain == "local" && !v.found {
             return ("Cadena local (desarrollo)",
-                    "El backend no está conectado a Midnight; no hay anclaje real que verificar.",
+                    "El backend no está conectado a Cardano; no hay anclaje real que verificar.",
                     "info.circle", .secondary)
         }
         let localHash = try? PatientHasher.sha256Hex(patient)
         if v.found, let oc = v.onChainHash, let lh = localHash, oc == lh {
-            return ("Verificado en Midnight",
+            return ("Verificado en Cardano",
                     "El hash del registro actual coincide con el valor anclado en la cadena.",
                     "checkmark.seal.fill", .green)
         }
@@ -234,7 +245,7 @@ struct PatientFormView: View {
                     "exclamationmark.triangle", .orange)
         }
         return ("Sin anclaje en la cadena",
-                "Este registro aún no ha sido anclado en Midnight.",
+                "Este registro aún no ha sido anclado en Cardano.",
                 "circle.dashed", .secondary)
     }
 
@@ -264,9 +275,9 @@ struct PatientFormView: View {
         if let updated = await env.saveAndAnchor(patient) {
             patient = updated
             originalSnapshot = updated  // saved → no longer dirty
-            let code = updated.passcode ?? "—"
-            let tx = env.lastAnchor?.txId ?? "—"
-            let chain = env.lastAnchor?.chain ?? "—"
+            let code = updated.passcode ?? "-"
+            let tx = env.lastAnchor?.txId ?? "-"
+            let chain = env.lastAnchor?.chain ?? "-"
             savedMessage = "Código de acceso: \(code)\nHash anclado en \(chain).\nTx: \(tx)"
             saved = true
         } else if let err = env.lastError {

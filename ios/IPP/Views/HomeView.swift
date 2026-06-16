@@ -7,16 +7,12 @@ struct HomeView: View {
     @State private var showingNew = false
     @State private var showingSearch = false
     @State private var showingLeaderboard = false
+    @State private var showingWeb = false
     @State private var newPatient = Patient.new()
 
     var body: some View {
         ZStack {
-            LinearGradient(
-                colors: [Color(.systemBackground), Color.indigo.opacity(0.04)],
-                startPoint: .top,
-                endPoint: .bottom
-            )
-            .ignoresSafeArea()
+            Color.ippScreen.ignoresSafeArea()
 
             VStack(spacing: 0) {
                 header
@@ -49,27 +45,34 @@ struct HomeView: View {
                 .environmentObject(env.schemaService)
                 .environmentObject(session)
         }
+        .sheet(isPresented: $showingWeb) {
+            WebDashboardView(url: env.webURL)
+        }
     }
 
     private var header: some View {
-        VStack(spacing: 6) {
-            Text("IPP")
-                .font(.system(size: 40, weight: .bold))
-                .kerning(-0.5)
-            Text("Pacientes")
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
+        VStack(spacing: 11) {
+            IPPMark(size: 56, shadow: true)
+            VStack(spacing: 3) {
+                Text("IPP")
+                    .font(.system(size: 36, weight: .bold))
+                    .kerning(-0.5)
+                    .foregroundStyle(Color.ippInk)
+                Text("Pacientes")
+                    .font(.subheadline)
+                    .foregroundStyle(Color.ippBody)
+            }
         }
-        .padding(.top, 56)
+        .padding(.top, 52)
     }
 
     private var actions: some View {
-        VStack(spacing: 14) {
+        VStack(spacing: 12) {
             HomeOptionButton(
                 title: "Nuevo Ingreso",
                 subtitle: session.isViewer ? "Visitante: formulario sin guardar" : nil,
                 systemImage: "plus.circle.fill",
-                tint: .blue
+                tint: .ippTeal
             ) {
                 newPatient = Patient.new()
                 showingNew = true
@@ -79,7 +82,7 @@ struct HomeView: View {
                 title: "Buscar Paciente",
                 subtitle: session.isViewer ? "Disponible con cuenta" : nil,
                 systemImage: "magnifyingglass",
-                tint: .purple,
+                tint: .ippTeal,
                 disabled: session.isViewer
             ) {
                 showingSearch = true
@@ -89,9 +92,18 @@ struct HomeView: View {
                 title: "Ranking",
                 subtitle: nil,
                 systemImage: "trophy.fill",
-                tint: .orange
+                tint: .ippGold
             ) {
                 showingLeaderboard = true
+            }
+
+            HomeOptionButton(
+                title: "Tablero",
+                subtitle: "Mapa de población y feedback",
+                systemImage: "globe",
+                tint: .ippTeal
+            ) {
+                showingWeb = true
             }
         }
     }
@@ -102,14 +114,15 @@ struct HomeView: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text(session.username ?? "Visitante")
                     .font(.callout.weight(.semibold))
+                    .foregroundStyle(Color.ippInk)
                 if let addr = session.walletAddress {
                     Text(CardanoWallet.shortAddress(addr))
                         .font(.caption.monospaced())
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(Color.ippMuted)
                 } else {
                     Text("Sin billetera asignada")
                         .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(Color.ippMuted)
                 }
             }
             Spacer()
@@ -118,10 +131,13 @@ struct HomeView: View {
                 .controlSize(.small)
         }
         .padding(.horizontal, 14)
-        .padding(.vertical, 10)
-        .background(.regularMaterial)
-        .clipShape(RoundedRectangle(cornerRadius: 14))
-        .shadow(color: .black.opacity(0.04), radius: 8, y: 2)
+        .padding(.vertical, 11)
+        .background(Color.white)
+        .clipShape(RoundedRectangle(cornerRadius: 16))
+        .overlay(
+            RoundedRectangle(cornerRadius: 16)
+                .stroke(Color.ippBorder, lineWidth: 1)
+        )
     }
 }
 
@@ -138,32 +154,33 @@ private struct HomeOptionButton: View {
             HStack(spacing: 14) {
                 ZStack {
                     RoundedRectangle(cornerRadius: 12)
-                        .fill(tint.opacity(0.15))
-                        .frame(width: 48, height: 48)
+                        .fill(tint.opacity(0.14))
+                        .frame(width: 44, height: 44)
                     Image(systemName: systemImage)
-                        .font(.title2)
+                        .font(.title3)
                         .foregroundStyle(tint)
                 }
                 VStack(alignment: .leading, spacing: 2) {
                     Text(title)
                         .font(.title3.weight(.semibold))
-                        .foregroundStyle(disabled ? .secondary : .primary)
+                        .foregroundStyle(disabled ? Color.ippMuted : Color.ippInk)
                     if let subtitle {
                         Text(subtitle)
                             .font(.caption)
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(Color.ippMuted)
                     }
                 }
                 Spacer()
                 Image(systemName: "chevron.right")
-                    .foregroundStyle(.tertiary)
+                    .font(.callout.weight(.semibold))
+                    .foregroundStyle(Color.ippFaint)
             }
-            .padding(16)
-            .background(Color(.secondarySystemBackground))
+            .padding(15)
+            .background(Color.white)
             .clipShape(RoundedRectangle(cornerRadius: 16))
             .overlay(
                 RoundedRectangle(cornerRadius: 16)
-                    .stroke(Color.black.opacity(0.04), lineWidth: 1)
+                    .stroke(Color.ippBorder, lineWidth: 1)
             )
         }
         .buttonStyle(.plain)

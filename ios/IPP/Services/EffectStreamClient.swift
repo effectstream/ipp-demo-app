@@ -6,7 +6,7 @@ struct AnchorResponse: Codable {
     let chain: String?
 }
 
-// Result of GET /api/v1/verify/:rut — on-chain anchor verification.
+// Result of GET /api/v1/verify/:rut - on-chain anchor verification.
 struct VerifyResult: Codable {
     let rut: String
     let keyHex: String
