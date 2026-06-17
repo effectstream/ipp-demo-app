@@ -15,9 +15,10 @@ interface Props {
   loading: boolean;
   error: string | null;
   onExport?: () => void;
+  exporting?: boolean;
 }
 
-export function MapFilters({ fields, filters, onChange, shown, total, loading, error, onExport }: Props) {
+export function MapFilters({ fields, filters, onChange, shown, total, loading, error, onExport, exporting }: Props) {
   const fieldById = useMemo(() => new Map(fields.map((f) => [f.id, f])), [fields]);
   const usedIds = useMemo(() => new Set(filters.map((f) => f.id)), [filters]);
 
@@ -56,8 +57,14 @@ export function MapFilters({ fields, filters, onChange, shown, total, loading, e
         </span>
         <div className="map-filters-actions">
           {onExport && !loading && !error && shown > 0 && (
-            <button type="button" className="mf-action" onClick={onExport} title="Descargar el grupo filtrado como CSV">
-              Exportar CSV
+            <button
+              type="button"
+              className="mf-action"
+              onClick={onExport}
+              disabled={exporting}
+              title="Exportar el grupo filtrado como CSV y anclar su prueba en Cardano"
+            >
+              {exporting ? "Anclando…" : "Exportar CSV"}
             </button>
           )}
           {anyActive && (

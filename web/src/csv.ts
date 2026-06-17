@@ -45,3 +45,57 @@ export function downloadCSV(filename: string, csv: string): void {
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
 }
+
+// Verification metadata prepended to an exported dataset so the Verification ID
+// travels WITH the file. Lines are `#`-prefixed; the data CSV (whose SHA-256 is
+// `exportHash`) follows. A verifier strips the BOM + the leading `#` lines and
+// hashes the remainder to reproduce `exportHash`.
+export interface ProofStamp {
+  verificationId: string;
+  recordsRoot: string;
+  exportHash: string;
+  anchoredValue: string;
+  chainTxId: string | null;
+  chain: string;
+  verifyUrl: string;
+}
+
+export function buildProofHeader(s: ProofStamp): string {
+  return [
+    `# IPP-VERIFICATION`,
+    `# Verification-ID: ${s.verificationId}`,
+    `# Chain: ${s.chain}  Tx: ${s.chainTxId ?? "(pending)"}`,
+    `# Records-Root: ${s.recordsRoot}`,
+    `# Export-SHA256: ${s.exportHash}`,
+    `# Anchored-Value: ${s.anchoredValue}`,
+    `# Verify: ${s.verifyUrl}`,
+    `# --- data below (its SHA-256 is Export-SHA256) ---`,
+  ].join("\r\n");
+}
+
+// Final file = header + data CSV. `exportHash` must be SHA-256 of `dataCsv` ONLY.
+export function stampCSV(header: string, dataCsv: string): string {
+  return `${header}\r\n${dataCsv}`;
+}
+
+// Strip a stamped CSV back to the exact `dataCsv` whose SHA-256 is Export-SHA256
+// (drops a leading BOM and the `#`-prefixed header). Used by the verifier.
+export function stripProofHeader(text: string): string {
+  const noBom = text.replace(/^﻿/, "");
+  const lines = noBom.split(/\r\n|\n/);
+  let i = 0;
+  while (i < lines.length && lines[i]!.startsWith("#")) i++;
+  return lines.slice(i).join("\r\n");
+}
+
+export function downloadJSON(filename: string, obj: unknown): void {
+  const blob = new Blob([JSON.stringify(obj, null, 2)], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}

@@ -2,10 +2,11 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { MapContainer, TileLayer, CircleMarker, Tooltip, Popup, useMap } from "react-leaflet";
 import L from "leaflet";
 import "leaflet.heat";
-import { fetchMapPins, fetchMapStats, fetchSchema } from "../api";
+import { fetchMapPins, fetchMapStats, fetchSchema, publishStudy, fetchStudyBundle } from "../api";
 import type { FormSchema, MapPin, MapStatPin } from "../types";
-import { activeFilters, deriveStatFields, matchesAll, type StatFilter } from "../mapStats";
-import { cohortToCSV, downloadCSV } from "../csv";
+import { activeFilters, deriveStatFields, describeFilters, matchesAll, type StatFilter } from "../mapStats";
+import { cohortToCSV, downloadCSV, buildProofHeader, stampCSV, downloadJSON } from "../csv";
+import { sha256Hex } from "../hash";
 import { MapFilters } from "./MapFilters";
 import { PinVerify } from "./PinVerify";
 import type { Annotation } from "../annotations";
@@ -207,10 +208,53 @@ export function MapView() {
     () => (statPins ? (canFilter ? statPins.filter((p) => matchesAll(p, active)) : statPins) : []),
     [statPins, canFilter, active],
   );
-  const exportCsv = useCallback(() => {
-    if (filteredStats.length === 0) return;
-    downloadCSV(`ipp-cohorte-${filteredStats.length}.csv`, cohortToCSV(filteredStats, fields));
-  }, [filteredStats, fields]);
+  // Exporting a cohort also RECORDS it: the filtered set is anchored on Cardano
+  // and the exported CSV is stamped with a Verification ID (+ a proof-bundle
+  // JSON is downloaded). If the chain/backend is unavailable we still hand over
+  // the data, clearly marked unverified.
+  const [exporting, setExporting] = useState(false);
+  const [exportNote, setExportNote] = useState<{ ok: boolean; text: string } | null>(null);
+  const exportCsv = useCallback(async () => {
+    if (filteredStats.length === 0 || exporting) return;
+    setExporting(true);
+    setExportNote(null);
+    const dataCsv = cohortToCSV(filteredStats, fields);
+    try {
+      const exportHash = sha256Hex(dataCsv);
+      const description = describeFilters(active, fields);
+      const result = await publishStudy({
+        memberIds: filteredStats.map((p) => p.id),
+        exportHash,
+        title: description,
+        filter: { description, json: active },
+      });
+      const header = buildProofHeader({
+        verificationId: result.verificationId,
+        recordsRoot: result.recordsRoot,
+        exportHash,
+        anchoredValue: result.anchoredValue,
+        chainTxId: result.chainTxId,
+        chain: result.chain,
+        verifyUrl: `${window.location.origin}/verificar`,
+      });
+      downloadCSV(`ipp-cohorte-${result.verificationId}.csv`, stampCSV(header, dataCsv));
+      // Hash-only proof bundle to attach to a paper / verify independently.
+      try {
+        downloadJSON(`ipp-prueba-${result.verificationId}.json`, await fetchStudyBundle(result.verificationId));
+      } catch {
+        /* bundle is optional; the CSV already carries the Verification ID */
+      }
+      setExportNote({ ok: true, text: `Dataset anclado · ID de verificación ${result.verificationId}` });
+    } catch (err) {
+      downloadCSV(`ipp-cohorte-${filteredStats.length}-SIN-VERIFICAR.csv`, dataCsv);
+      setExportNote({
+        ok: false,
+        text: `Exportado sin verificación (cadena no disponible): ${err instanceof Error ? err.message : String(err)}`,
+      });
+    } finally {
+      setExporting(false);
+    }
+  }, [filteredStats, fields, active, exporting]);
 
   return (
     <section className="card">
@@ -229,7 +273,13 @@ export function MapView() {
         loading={statPins == null && statErr == null}
         error={statErr}
         onExport={exportCsv}
+        exporting={exporting}
       />
+      {exportNote && (
+        <p className={exportNote.ok ? "hint export-ok" : "hint export-err"} style={{ margin: "6px 0 0" }}>
+          {exportNote.text}
+        </p>
+      )}
 
       <div className="map-controls">
         <label className="slider">

@@ -191,3 +191,28 @@ function matchesOne(value: ResponseValue | undefined, f: StatFilter): boolean {
 export function matchesAll(pin: MapStatPin, filters: StatFilter[]): boolean {
   return filters.every((f) => matchesOne(pin.stats[f.id], f));
 }
+
+// Human-readable description of the active cohort filters, recorded with a study
+// as provenance ("which slice of the population this export covers").
+export function describeFilters(active: StatFilter[], fields: StatField[]): string {
+  if (active.length === 0) return "Todos los pacientes";
+  const label = new Map(fields.map((f) => [f.id, f.label] as const));
+  return active
+    .map((f) => {
+      const name = label.get(f.id) ?? f.id;
+      switch (f.type) {
+        case "boolean":
+          return `${name}: ${f.want ? "Sí" : "No"}`;
+        case "number":
+          return `${name}: ${f.min ?? ""}–${f.max ?? ""}`;
+        case "date":
+          return `${name}: ${f.dateMin ?? ""}–${f.dateMax ?? ""}`;
+        case "text":
+        case "address":
+          return `${name} ~ "${f.query.trim()}"`;
+        default:
+          return `${name}: ${f.selected.join(" / ")}`;
+      }
+    })
+    .join("; ");
+}

@@ -14,7 +14,7 @@ import {
 import { LocalAdapter } from "./adapters/local.ts";
 import { verifySignature } from "./verify.ts";
 import { hashPatientData } from "./canonical.ts";
-import { merkleRoot } from "./merkle.ts";
+import { merkleRoot, merkleProof } from "./merkle.ts";
 import { checkRate, recordFailure, clearRate } from "./ratelimit.ts";
 import { requireDoctor, isRegisteredKey } from "./auth.ts";
 import type {
@@ -395,8 +395,9 @@ function haversineKm(aLat: number, aLng: number, bLat: number, bLng: number): nu
   return 2 * R * Math.asin(Math.sqrt(s));
 }
 
-// Curated reference ("Mundo") baselines - only fields with a sensible global
-// value get a world comparison. Illustrative figures for the demo.
+// Reference ("Mundo") baselines - representative population averages used as the
+// world comparison; only fields with a sensible global value get one. Refine
+// per field with sourced figures as they are confirmed.
 const WORLD_BASELINES: Record<string, { type: string; mean?: number; pctTrue?: number }> = {
   edad: { type: "number", mean: 41 },
   peso: { type: "number", mean: 70 },
@@ -709,14 +710,52 @@ app.get("/api/v1/verify/:rut", async (req, reply) => {
 // convention (a rootHash on chain attesting off-chain data).
 
 app.post("/api/v1/studies", { preHandler: requireDoctor }, async (req, reply) => {
-  const body = req.body as { title?: string } | undefined;
+  const body = req.body as
+    | {
+        title?: string;
+        memberIds?: unknown;
+        exportHash?: string;
+        filter?: { description?: string; json?: unknown };
+      }
+    | undefined;
   const title = typeof body?.title === "string" && body.title.trim() ? body.title.trim() : null;
+  // SHA-256 hex of the exported data file this study certifies (optional).
+  const exportHash =
+    typeof body?.exportHash === "string" && /^[0-9a-f]{64}$/i.test(body.exportHash)
+      ? body.exportHash.toLowerCase()
+      : null;
+  const filterDescription =
+    typeof body?.filter?.description === "string" && body.filter.description.trim()
+      ? body.filter.description.trim()
+      : null;
+  const filterJson = body?.filter?.json ?? null;
 
-  const rows = await sql<{ rut: string; data: Record<string, unknown> }[]>`
-    SELECT rut, data FROM patients ORDER BY rut
-  `;
-  const members = rows.map((r) => ({ rut: r.rut, hash: hashPatientData(r.data) }));
+  // Cohort selection: an explicit member-id list (the filtered cohort the doctor
+  // exported) or, when omitted, all patients (back-compat).
+  const memberIds = Array.isArray(body?.memberIds)
+    ? (body!.memberIds as unknown[]).filter((x): x is string => typeof x === "string")
+    : null;
+
+  const rows =
+    memberIds && memberIds.length > 0
+      ? await sql<{ id: string; rut: string; data: Record<string, unknown> }[]>`
+          SELECT id, rut, data FROM patients WHERE id = ANY(${memberIds}) ORDER BY rut
+        `
+      : await sql<{ id: string; rut: string; data: Record<string, unknown> }[]>`
+          SELECT id, rut, data FROM patients ORDER BY rut
+        `;
+  if (rows.length === 0) {
+    return reply.code(400).send({ error: "cohort is empty" });
+  }
+
+  const members = rows.map((r) => ({ id: r.id, rut: r.rut, hash: hashPatientData(r.data) }));
   const root = merkleRoot(members.map((m) => m.hash));
+  // Bind the exact exported file to the cohort in ONE on-chain value:
+  // anchoredValue = sha256(rootHex ++ exportHashHex). Clients/CLI recompute the
+  // same way. With no export hash, the anchored value is just the cohort root.
+  const anchoredValue = exportHash
+    ? createHash("sha256").update(`${root}${exportHash}`, "utf8").digest("hex")
+    : root;
 
   const id = randomUUID();
   const chainKey = createHash("sha256").update(`study:${id}`, "utf8").digest("hex");
@@ -726,7 +765,7 @@ app.post("/api/v1/studies", { preHandler: requireDoctor }, async (req, reply) =>
     txId = await adapter.submit({
       patientId: id,
       rut: `study:${id}`,
-      hash: root,
+      hash: anchoredValue,
       publicKey: "",
       signature: "",
       timestamp: Date.now(),
@@ -737,19 +776,32 @@ app.post("/api/v1/studies", { preHandler: requireDoctor }, async (req, reply) =>
   }
 
   await sql`
-    INSERT INTO studies (id, title, root, members, member_count, chain_key, chain_tx_id, chain_name)
-    VALUES (${id}, ${title}, ${root}, ${sql.json(members as never)}, ${members.length}, ${chainKey}, ${txId}, ${adapter.name})
+    INSERT INTO studies
+      (id, title, root, members, member_count, chain_key, chain_tx_id, chain_name,
+       filter_description, filter_json, export_hash, anchored_value)
+    VALUES
+      (${id}, ${title}, ${root}, ${sql.json(members as never)}, ${members.length},
+       ${chainKey}, ${txId}, ${adapter.name}, ${filterDescription},
+       ${filterJson === null ? null : sql.json(filterJson as never)}, ${exportHash}, ${anchoredValue})
   `;
 
   return reply.code(201).send({
-    id, title, root, memberCount: members.length,
-    chainKey, chainTxId: txId, chain: adapter.name,
+    verificationId: id,
+    title,
+    recordsRoot: root,
+    exportHash,
+    anchoredValue,
+    memberCount: members.length,
+    chainKey,
+    chainTxId: txId,
+    chain: adapter.name,
   });
 });
 
-// Public: validate a study's dataset against the on-chain root. Recomputes the
-// Merkle root from the members' CURRENT record hashes and compares it to (a)
-// the published root and (b) the value still on chain.
+// Doctor-side DRIFT check: recompute the Merkle root from the members' CURRENT
+// record hashes and compare to (a) the published root and (b) the value still on
+// chain. This answers "is my live dataset still the one I published?" - distinct
+// from the public, trustless bundle verification (GET /studies/:id + chain read).
 app.get("/api/v1/verify-study/:id", async (req, reply) => {
   const { id } = req.params as { id: string };
   const studyRows = await sql<{
@@ -761,14 +813,18 @@ app.get("/api/v1/verify-study/:id", async (req, reply) => {
     chainTxId: string | null;
     chainName: string;
     createdAt: string;
+    anchoredValue: string | null;
   }[]>`
     SELECT title, root, members, member_count AS "memberCount",
            chain_key AS "chainKey", chain_tx_id AS "chainTxId",
-           chain_name AS "chainName", created_at AS "createdAt"
+           chain_name AS "chainName", created_at AS "createdAt",
+           anchored_value AS "anchoredValue"
     FROM studies WHERE id = ${id}
   `;
   const study = studyRows[0];
   if (!study) return reply.code(404).send({ error: "study not found" });
+  // The value actually anchored on chain (older rows predate the column).
+  const anchoredValue = study.anchoredValue ?? study.root;
 
   const all = await sql<{ rut: string; data: Record<string, unknown> }[]>`
     SELECT rut, data FROM patients
@@ -784,13 +840,13 @@ app.get("/api/v1/verify-study/:id", async (req, reply) => {
   }
   const recomputedRoot = merkleRoot(study.members.map((m) => currentByRut.get(m.rut) ?? m.hash));
 
-  let onChainRoot: string | null = null;
+  let onChainValue: string | null = null;
   let chainFound = false;
   let readError: string | null = null;
   try {
     const result = await adapter.read(study.chainKey);
     chainFound = result.found;
-    onChainRoot = result.valueHex;
+    onChainValue = result.valueHex;
   } catch (err) {
     readError = err instanceof Error ? err.message : String(err);
   }
@@ -804,15 +860,90 @@ app.get("/api/v1/verify-study/:id", async (req, reply) => {
     memberCount: study.memberCount,
     storedRoot: study.root,
     recomputedRoot,
-    onChainRoot,
+    anchoredValue,
+    onChainValue,
     // No member record was edited or removed since publication.
     datasetIntact: recomputedRoot === study.root && changed.length === 0 && missing.length === 0,
-    // The chain still holds the published root.
-    chainMatch: chainFound && onChainRoot === study.root,
+    // The chain still holds the value we anchored.
+    chainMatch: chainFound && onChainValue === anchoredValue,
     changed,
     missing,
     readError,
     anchoredAt: study.createdAt,
+  };
+});
+
+// Doctor-scope: list the studies/exports this instance has recorded.
+app.get("/api/v1/studies", { preHandler: requireDoctor }, async () => {
+  const rows = await sql<{
+    id: string;
+    title: string | null;
+    memberCount: number;
+    chainTxId: string | null;
+    chainName: string;
+    createdAt: string;
+    filterDescription: string | null;
+    exportHash: string | null;
+  }[]>`
+    SELECT id, title, member_count AS "memberCount", chain_tx_id AS "chainTxId",
+           chain_name AS "chainName", created_at AS "createdAt",
+           filter_description AS "filterDescription", export_hash AS "exportHash"
+    FROM studies ORDER BY created_at DESC
+  `;
+  return { studies: rows };
+});
+
+// Public: the hash-only proof bundle for a study/export. Carries only record
+// hashes + Merkle inclusion proofs + the on-chain anchor pointer - NO PII - so
+// it's safe to attach to a paper. A third party recomputes the root from the
+// leaves and checks it against the value on Cardano (read by chainTxId), without
+// trusting this backend. See scripts/verify-study-bundle.ts and the web verifier.
+app.get("/api/v1/studies/:id", async (req, reply) => {
+  const { id } = req.params as { id: string };
+  const rows = await sql<{
+    title: string | null;
+    root: string;
+    members: { id?: string; rut: string; hash: string }[];
+    memberCount: number;
+    chainKey: string;
+    chainTxId: string | null;
+    chainName: string;
+    createdAt: string;
+    filterDescription: string | null;
+    exportHash: string | null;
+    anchoredValue: string | null;
+  }[]>`
+    SELECT title, root, members, member_count AS "memberCount",
+           chain_key AS "chainKey", chain_tx_id AS "chainTxId",
+           chain_name AS "chainName", created_at AS "createdAt",
+           filter_description AS "filterDescription",
+           export_hash AS "exportHash", anchored_value AS "anchoredValue"
+    FROM studies WHERE id = ${id}
+  `;
+  const s = rows[0];
+  if (!s) return reply.code(404).send({ error: "study not found" });
+
+  // Hashes only (no rut/id) + an inclusion proof per record against recordsRoot.
+  const hashes = s.members.map((m) => m.hash);
+  const leaves = hashes.map((hash, i) => ({ index: i, hash, proof: merkleProof(hashes, hash) }));
+
+  return {
+    verificationId: id,
+    title: s.title,
+    createdAt: s.createdAt,
+    filterDescription: s.filterDescription,
+    memberCount: s.memberCount,
+    recordsRoot: s.root,
+    exportHash: s.exportHash,
+    anchoredValue: s.anchoredValue ?? s.root,
+    chain: { name: s.chainName, txId: s.chainTxId, metadataLabel: 8327, key: s.chainKey },
+    leaves,
+    spec: {
+      hash: "sha256",
+      record: "sha256(canonical JSON of the record; sorted keys; passcode excluded)",
+      merkle: "sorted leaves; internal node = sha256(aHex ++ bHex); odd node paired with itself",
+      anchoredValue: "exportHash ? sha256(recordsRootHex ++ exportHashHex) : recordsRoot",
+    },
   };
 });
 

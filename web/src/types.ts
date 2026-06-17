@@ -131,3 +131,77 @@ export interface VerifyResult {
   anchoredAt: string | null;
   readError: string | null;
 }
+
+// -- Studies / verifiable dataset exports --------------------------------
+
+// Result of POST /api/v1/studies (publish a cohort-scoped, export-bound study).
+export interface StudyPublishResult {
+  verificationId: string;
+  title: string | null;
+  recordsRoot: string;
+  exportHash: string | null;
+  anchoredValue: string;
+  memberCount: number;
+  chainKey: string;
+  chainTxId: string | null;
+  chain: string;
+}
+
+// One row of GET /api/v1/studies (doctor-scope list).
+export interface StudySummary {
+  id: string;
+  title: string | null;
+  memberCount: number;
+  chainTxId: string | null;
+  chainName: string;
+  createdAt: string;
+  filterDescription: string | null;
+  exportHash: string | null;
+}
+
+// One step of a Merkle inclusion proof (mirrors backend MerkleProofStep).
+export interface MerkleProofStep {
+  sibling: string;
+  right: boolean;
+}
+
+export interface ProofLeaf {
+  index: number;
+  hash: string;
+  proof: MerkleProofStep[];
+}
+
+// The hash-only proof bundle (GET /api/v1/studies/:id) - safe to publish.
+export interface ProofBundle {
+  verificationId: string;
+  title: string | null;
+  createdAt: string;
+  filterDescription: string | null;
+  memberCount: number;
+  recordsRoot: string;
+  exportHash: string | null;
+  anchoredValue: string;
+  chain: { name: string; txId: string | null; metadataLabel: number; key: string };
+  leaves: ProofLeaf[];
+  spec: Record<string, string>;
+}
+
+// Doctor-side drift check (GET /api/v1/verify-study/:id).
+export interface StudyVerifyResult {
+  id: string;
+  title: string | null;
+  chain: string;
+  chainKey: string;
+  chainTxId: string | null;
+  memberCount: number;
+  storedRoot: string;
+  recomputedRoot: string;
+  anchoredValue: string;
+  onChainValue: string | null;
+  datasetIntact: boolean;
+  chainMatch: boolean;
+  changed: string[];
+  missing: string[];
+  readError: string | null;
+  anchoredAt: string;
+}

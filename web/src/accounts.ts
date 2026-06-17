@@ -1,18 +1,16 @@
-import { mockCardanoAddress } from "./session";
+import { deriveCardanoAddress } from "./session";
 
-// Demo accounts. Each user's secretKey was generated once (32 bytes from
-// node's crypto.randomBytes) and is committed verbatim - the Cardano-style
-// wallet address is deterministically derived from it. Real Cardano
-// keypair derivation (CIP-1852 + bech32) will replace this when wallet
-// support lands; the rest of the app already routes through walletForAccount,
-// so only this file needs to change.
-export interface DemoAccount {
+// Built-in accounts. Each user's secretKey was generated once (32 bytes from
+// node's crypto.randomBytes) and is committed verbatim; the Cardano-style
+// wallet address is deterministically derived from it. The rest of the app
+// routes through walletForAccount, so address derivation is isolated here.
+export interface BuiltInAccount {
   username: string;
   password: string;
   secretKey: string; // hex, 64 chars
 }
 
-export const ACCOUNTS: DemoAccount[] = [
+export const ACCOUNTS: BuiltInAccount[] = [
   { username: "user01", password: "pass01", secretKey: "ccc9f28bd0bc571e9e2f94043b7836ee25259d44828d7fb88e2607963952edcb" },
   { username: "user02", password: "pass02", secretKey: "7159b3bb29843b62e93eb12b6d5f2933a8c6cb648227231d550aff695851d8c3" },
   { username: "user03", password: "pass03", secretKey: "5213fe778936f41818d22484088590f2e5096b5a020049dfb91cbb0af32e3bb3" },
@@ -25,18 +23,18 @@ export const ACCOUNTS: DemoAccount[] = [
   { username: "user10", password: "pass10", secretKey: "c7eca2c87f21d35d824b7489988095b4ffc67c77ffcb9da8109fde205ff091d2" },
 ];
 
-export function findAccount(username: string, password: string): DemoAccount | null {
+export function findAccount(username: string, password: string): BuiltInAccount | null {
   const u = username.trim();
   return ACCOUNTS.find((a) => a.username === u && a.password === password) ?? null;
 }
 
 // Look up an account by username alone - used to recover the signing key for
 // the logged-in session (the session only stores the username).
-export function accountByUsername(username: string): DemoAccount | null {
+export function accountByUsername(username: string): BuiltInAccount | null {
   const u = username.trim();
   return ACCOUNTS.find((a) => a.username === u) ?? null;
 }
 
-export function walletForAccount(account: DemoAccount): string {
-  return mockCardanoAddress(`cardano-sk:${account.secretKey}`);
+export function walletForAccount(account: BuiltInAccount): string {
+  return deriveCardanoAddress(`cardano-sk:${account.secretKey}`);
 }

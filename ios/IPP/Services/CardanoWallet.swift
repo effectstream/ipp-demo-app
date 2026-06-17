@@ -1,11 +1,10 @@
 import Foundation
 
-// Mock Cardano-style address derivation. Mirrors web/src/session.ts exactly
+// Deterministic Cardano-style address derivation. Mirrors web/src/session.ts
 // (two-stream FNV-1a hash with the same seeds) so iOS and web produce
-// identical addresses for the same input. Replace with CIP-1852 + bech32
-// when real wallet support lands.
+// identical addresses for the same input.
 enum CardanoWallet {
-    static func mockAddress(for seed: String) -> String {
+    static func deriveAddress(for seed: String) -> String {
         let h = fnv1aHex(seed, length: 24)
         let h2 = fnv1aHex("\(seed):2", length: 24)
         return "addr1q\(h)\(h2)"

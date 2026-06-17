@@ -201,7 +201,7 @@ function interpretVerify(r: VerifyResult): { tone: VerifyTone; title: string; de
   if (r.chain === "local" && !r.found) {
     return {
       tone: "neutral",
-      title: "Cadena local (desarrollo)",
+      title: "Cadena local",
       detail: "El backend no está conectado a Cardano, así que no hay anclaje real que verificar.",
     };
   }

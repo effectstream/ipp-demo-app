@@ -1448,3 +1448,43 @@ button.primary:disabled {
 .pin-verify-row code {
   font-size: 10px;
 }
+
+/* -- Studies / verifiable export ------------------------------------- */
+.export-ok { color: var(--accent, #0e726e); }
+.export-err { color: #b91c1c; }
+
+.studies-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+  margin-top: 8px;
+}
+.studies-table th,
+.studies-table td {
+  text-align: left;
+  padding: 7px 8px;
+  border-bottom: 1px solid var(--border, #e5e7eb);
+  vertical-align: middle;
+}
+.studies-table th { color: var(--muted, #6b7280); font-weight: 600; }
+.studies-table .mono,
+td.mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; }
+.studies-actions { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+
+.verify-inputs { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.verify-or { color: var(--muted, #6b7280); font-size: 12px; }
+
+.verify-pass { color: var(--accent, #0e726e); }
+.verify-fail { color: #b91c1c; }
+.verify-checks { list-style: none; padding: 0; margin: 8px 0 0; display: grid; gap: 4px; }
+.verify-ok { color: var(--accent, #0e726e); }
+.verify-no { color: #b91c1c; }
+
+/* The export/verify action buttons reuse .mf-action; ensure a usable look even
+   if a file-input <label> carries the class. */
+label.mf-action { cursor: pointer; display: inline-flex; align-items: center; }
+.mf-action.primary {
+  background: var(--accent, #0e726e);
+  color: #fff;
+  border-color: var(--accent, #0e726e);
+}

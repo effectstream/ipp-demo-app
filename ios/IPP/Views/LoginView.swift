@@ -88,11 +88,6 @@ struct LoginView: View {
                             )
                     }
                     .buttonStyle(.plain)
-
-                    Text("Cuentas de demo: user01…user10 con contraseñas pass01…pass10.")
-                        .font(.caption2)
-                        .foregroundStyle(Color.ippMuted)
-                        .multilineTextAlignment(.center)
                 }
                 .padding(26)
                 .background(Color.white)

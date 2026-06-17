@@ -66,7 +66,7 @@ final class SessionService: ObservableObject {
     }
 
     func loginWithCredentials(username: String, password: String) -> Bool {
-        guard let account = DemoAccounts.find(username: username, password: password) else {
+        guard let account = Accounts.find(username: username, password: password) else {
             return false
         }
         state = .loggedIn(account)
@@ -113,7 +113,7 @@ final class SessionService: ObservableObject {
     private static func load() -> State {
         guard let raw = UserDefaults.standard.string(forKey: key) else { return .none }
         if raw == viewerToken { return .viewer }
-        if let account = DemoAccounts.all.first(where: { $0.username == raw }) {
+        if let account = Accounts.all.first(where: { $0.username == raw }) {
             return .loggedIn(account)
         }
         return .none

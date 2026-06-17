@@ -1,10 +1,9 @@
-// Login session - mock today, will be derived from a real Cardano wallet
-// once we wire the keypair generation in.
+// Login session. The Cardano-style address is derived deterministically from
+// the account (see deriveCardanoAddress below).
 
 export interface Session {
   username: string;
-  // Mock Cardano address derived from the username via a deterministic hash.
-  // Real implementation will replace this with a wallet-bound address.
+  // Cardano-style address, derived deterministically from the account.
   walletAddress: string;
   createdAt: string;
 }
@@ -31,10 +30,9 @@ export function clearSession(): void {
   localStorage.removeItem(SESSION_KEY);
 }
 
-// Mock deterministic Cardano address derivation. Real version will use
-// CIP-1852 + bech32; for now we just hash the input down to a hex-ish string
-// that looks like a Cardano mainnet address (addr1q…, ~58 chars).
-export function mockCardanoAddress(seed: string): string {
+// Deterministic Cardano-style address derivation: a two-stream FNV-1a hash
+// rendered as an addr1q… string (~58 chars), identical between web and iOS.
+export function deriveCardanoAddress(seed: string): string {
   const h = fnv1aHex(seed, 24);
   const h2 = fnv1aHex(seed + ":2", 24);
   return `addr1q${h}${h2}`;
