@@ -395,8 +395,9 @@ function haversineKm(aLat: number, aLng: number, bLat: number, bLng: number): nu
   return 2 * R * Math.asin(Math.sqrt(s));
 }
 
-// Curated reference ("Mundo") baselines - only fields with a sensible global
-// value get a world comparison. Illustrative figures for the demo.
+// Reference ("Mundo") baselines - representative population averages used as the
+// world comparison; only fields with a sensible global value get one. Refine
+// per field with sourced figures as they are confirmed.
 const WORLD_BASELINES: Record<string, { type: string; mean?: number; pctTrue?: number }> = {
   edad: { type: "number", mean: 41 },
   peso: { type: "number", mean: 70 },

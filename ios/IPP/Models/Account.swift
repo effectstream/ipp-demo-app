@@ -1,6 +1,6 @@
 import Foundation
 
-// Demo accounts. Secret keys match web/src/accounts.ts byte-for-byte so the
+// Built-in accounts. Secret keys match web/src/accounts.ts byte-for-byte so the
 // derived Cardano address is identical between iOS and the web for the
 // same login.
 struct Account: Codable, Hashable, Identifiable {
@@ -11,7 +11,7 @@ struct Account: Codable, Hashable, Identifiable {
     var id: String { username }
 }
 
-enum DemoAccounts {
+enum Accounts {
     static let all: [Account] = [
         Account(username: "user01", password: "pass01", secretKey: "ccc9f28bd0bc571e9e2f94043b7836ee25259d44828d7fb88e2607963952edcb"),
         Account(username: "user02", password: "pass02", secretKey: "7159b3bb29843b62e93eb12b6d5f2933a8c6cb648227231d550aff695851d8c3"),
@@ -33,6 +33,6 @@ enum DemoAccounts {
 
 extension Account {
     var walletAddress: String {
-        CardanoWallet.mockAddress(for: "cardano-sk:\(secretKey)")
+        CardanoWallet.deriveAddress(for: "cardano-sk:\(secretKey)")
     }
 }

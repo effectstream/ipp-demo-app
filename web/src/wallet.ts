@@ -1,10 +1,10 @@
-import { mockCardanoAddress } from "./session";
+import { deriveCardanoAddress } from "./session";
 
-// Until a patient row carries the creator's wallet address from the
-// backend, derive a mock one from the patient's id. Deterministic so the
-// same patient always shows the same address.
+// Until a patient row carries the creator's wallet address from the backend,
+// derive one from the patient's id. Deterministic so the same patient always
+// shows the same address.
 export function walletForPatient(patientId: string): string {
-  return mockCardanoAddress(`patient:${patientId}`);
+  return deriveCardanoAddress(`patient:${patientId}`);
 }
 
 // Shorten an address for compact display ("addr1q…abc123"). Real Cardano

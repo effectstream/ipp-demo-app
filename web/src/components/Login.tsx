@@ -74,10 +74,6 @@ export function Login({ onLogin }: Props) {
           <CardanoLogo size={16} />
           <span>Tu usuario y contraseña crearán una cuenta Cardano</span>
         </div>
-
-        <p className="login-hint">
-          Cuentas de demo: <code>user01</code>…<code>user10</code> con contraseñas <code>pass01</code>…<code>pass10</code>.
-        </p>
       </div>
     </main>
   );

@@ -5,8 +5,7 @@ import CryptoKit
 // account's 32-byte secret seed, so the same account produces the same public
 // key and signatures on every launch and on any device - and, because it's
 // standard RFC 8032 ed25519, byte-identical to the web client's @noble key for
-// the same seed. (A real signup flow would generate a random seed and stash it
-// in the Keychain; the demo accounts ship fixed seeds, so derivation is enough.)
+// the same seed.
 struct Wallet {
     private let privateKey: Curve25519.Signing.PrivateKey
 

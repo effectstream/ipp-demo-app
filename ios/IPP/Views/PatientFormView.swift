@@ -219,7 +219,7 @@ struct PatientFormView: View {
             return ("No se pudo leer la cadena", err, "exclamationmark.triangle", .secondary)
         }
         if v.chain == "local" && !v.found {
-            return ("Cadena local (desarrollo)",
+            return ("Cadena local",
                     "El backend no está conectado a Cardano; no hay anclaje real que verificar.",
                     "info.circle", .secondary)
         }
